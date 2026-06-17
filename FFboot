@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>FF OS - Implant Interface v4.01</title>
+    <style>
+        /* Основные настройки ретро-стиля */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            color: #00d2ff; /* Сине-голубой основной цвет */
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        /* Эффект старого ЭЛТ-монитора (сканлайны и мерцание) */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 99999;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: rgba(18, 16, 16, 0.1);
+            opacity: 0;
+            z-index: 99998;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.15; }
+            50% { opacity: 0.25; }
+            100% { opacity: 0.15; }
+        }
+
+        /* ЭКРАН ЗАГРУЗКИ (BOOT SEQUENCE) */
+        #boot-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000000;
+            z-index: 10000;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow-y: auto;
+        }
+        .boot-line {
+            visibility: hidden;
+            margin-bottom: 5px;
+            white-space: pre-wrap;
+        }
+        .boot-ok { color: #00d2ff; }
+        .boot-err { color: #ff3333; }
+        .boot-warn { color: #ffb000; }
+        
+        #progress-container {
+            margin-top: 20px;
+            width: 400px;
+            max-width: 100%;
+            display: none;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #00d2ff;
+            transition: width 0.1s ease;
+        }
+        #progress-border {
+            border: 1px solid #00d2ff;
+            padding: 2px;
+            width: 100%;
+        }
+
+        /* Лицензионное соглашение */
+        #license-container {
+            margin-top: 30px;
+            border: 1px solid #ffb000;
+            padding: 20px;
+            width: 600px;
+            max-width: 100%;
+            background-color: #050505;
+            display: none;
+        }
+        .license-title {
+            color: #ffb000;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .license-text {
+            font-size: 13px;
+            line-height: 1.4;
+            color: #a0e0ff;
+            margin-bottom: 20px;
+        }
+        .terminal-btn {
+            background-color: transparent;
+            border: 1px solid #00d2ff;
+            color: #00d2ff;
+            padding: 8px 15px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+        }
+        .terminal-btn:hover {
+            background-color: #00d2ff;
+            color: #000000;
+        }
+
+        /* РАБОЧИЙ СТОЛ */
+        #desktop {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        .desktop-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100px;
+            cursor: pointer;
+            text-align: center;
+            padding: 10px;
+            border: 1px solid transparent;
+        }
+        .desktop-icon:hover {
+            border: 1px dashed #00d2ff;
+            background-color: rgba(0, 210, 255, 0.05);
+        }
+        .icon-pic {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+        .icon-label {
+            font-size: 12px;
+            word-break: break-word;
+        }
+
+        /* ОКНА ИНТЕРФЕЙСА */
+        .window {
+            position: absolute;
+            background-color: #000000;
+            border: 2px solid #00d2ff;
+            min-width: 250px;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.1);
+        }
+        /* Стиль для неактивного окна (более темная рамка) */
+        .window.inactive {
+            border-color: #00667a;
+        }
+        .window.inactive .window-header {
+            background-color: #00333d;
+            border-bottom-color: #00667a;
+            color: #00667a;
+        }
+
+        .window-header {
+            background-color: #004452;
+            border-bottom: 2px solid #00d2ff;
+            padding: 5px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            font-weight: bold;
+        }
+        .window-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .window-controls {
+            display: flex;
+            gap: 5px;
+        }
+        .win-btn {
+            background: transparent;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        .win-btn:hover {
+            color: #ff3333;
+        }
+
+        .window-content {
+            padding: 15px;
+            flex-grow: 1;
+            overflow: auto;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        /* Изменение размеров (Resize handler) */
+        .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: transparent;
+            right: 0;
+            bottom: 0;
+            cursor: se-resize;
+        }
+
+        /* СПЕЦИФИКА ПРИЛОЖЕНИЙ */
+        /* Новости */
+        #news-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+        }
+        #news-body {
+            border: 1px solid #00d2ff;
+            padding: 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        /* Внутреннее оформление из TXT теперь рендерится через innerHTML */
+        #news-body span, #news-body b, #news-body i {
+            user-select: text;
+        }
+
+        /* Анимация палочки загрузки */
+        .spinner {
+            font-size: 24px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .err-text {
+            color: #ff3333;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .center-msg-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="boot-screen">
+        <div class="boot-line" id="line1">> FF_OS [Version 4.01.2026-IMPLANT]</div>
+        <div class="boot-line" id="line2">> КОРПОРАТИВНАЯ КБ-СЕТЬ ФРАНКСФОЛЛ: ИНСТРУМЕНТАРИЙ ОПЕРАТИВНИКА</div>
+        <div class="boot-line" id="line3">> Инициализация нейросети импланта... <span class="boot-ok">[OK]</span></div>
+        <div class="boot-line" id="line4">> Проверка локальной директории Азамар_Карантин... <span class="boot-ok">[OK]</span></div>
+        <div class="boot-line" id="line5">> Подключение к спутниковому ретранслятору... <span class="boot-warn">[ПОТЕРЯ ПАКЕТОВ 14%]</span></div>
+        <div class="boot-line" id="line6">> Тестирование заряда встроенной микро-взрывчатки... <span class="boot-ok">[СТАБИЛЬНО]</span></div>
+        <div class="boot-line" id="line7">> Синхронизация жизненных показателей наемника... <span class="boot-ok">[МАРКЕРЫ ЖИЗНИ: НОРМА]</span></div>
+        <div class="boot-line" id="line8">> Проверка протокола автоматической зачистки улик... <span class="boot-ok">[АКТИВЕН]</span></div>
+        <div class="boot-line" id="line9">> Попытка несанкционированного удаления прошивки... <span class="boot-err">[ПРЕСЕЧЕНО В СЕКУНДУ 0.02]</span></div>
+        <div class="boot-line" id="line10">> Все системы функционируют в штатном режиме равнодушия.</div>
+        
+        <div id="progress-container">
+            <div>ЗАГРУЗКА ИНТЕРФЕЙСА СВЯЗИ...</div>
+            <div id="progress-border">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="license-container">
+            <div class="license-title">ВНИМАНИЕ ОПЕРАТИВНИКА (ЛИЦЕНЗИЯ FRANKSFALL)</div>
+            <div class="license-text">
+                Настоящим вы подтверждаете, что организация Franksfall не несет ответственности за дезинтеграцию ваших лобных долей, внезапную детонацию шейного импланта при попытке дезертирства или несанкционированный контакт с Антиэнтропийным Нулевым Металлом. В случае вашей биологической смерти, данное устройство превратит ваши ткани в пепел ради сохранения коммерческой тайны. Улыбайтесь, вы работаете на профессионалов.
+            </div>
+            <button class="terminal-btn" onclick="acceptLicense()">Я ПРИНИМАЮ РИСКИ И УСЛОВИЯ</button>
+        </div>
+    </div>
+
+    <div id="desktop">
+        <div class="desktop-icon" onclick="openWindow('win-news')">
+            <div class="icon-pic">📁</div>
+            <div class="icon-label">Инфо_Данные</div>
+        </div>
+        <div class="desktop-icon" onclick="openCenteredBox('Чат с посредником')">
+            <div class="icon-pic">📟</div>
+            <div class="icon-label">Внутр_Чат</div>
+        </div>
+        <div class="desktop-icon" onclick="openCenteredBox('База Персон')">
+            <div class="icon-pic">👥</div>
+            <div class="icon-label">Персоны</div>
+        </div>
+    </div>
+
+    <div id="win-news" class="window" style="width: 550px; height: 400px; top: 100px; left: 150px; display: none;">
+        <div class="window-header">
+            <div class="window-title">Новости и информация</div>
+            <div class="window-controls">
+                <button class="win-btn" onclick="closeWindow('win-news')">[X]</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div id="news-container">
+                <div>
+                    <button class="terminal-btn" onclick="fetchGitHubData()">ПОЛУЧИТЬ СВЕЖИЕ ДАННЫЕ С СЕРВЕРА</button>
+                </div>
+                <div id="news-body">
+                    Ожидание запроса данных... <br>
+                    Нажмите кнопку выше для синхронизации с удаленным репозиторием.
+                </div>
+            </div>
+        </div>
+        <div class="resize-handle"></div>
+    </div>
+
+    <div id="win-centered" class="window" style="width: 350px; height: 200px; display: none; z-index: 20000;">
+        <div class="window-header">
+            <div class="window-title" id="centered-title">Запрос</div>
+            <div class="window-controls">
+                <button class="win-btn" onclick="closeCenteredBox()">[X]</button>
+            </div>
+        </div>
+        <div class="window-content" id="centered-content">
+            </div>
+    </div>
+
+    <script>
+        // НАСТРОЙКИ СВЯЗИ С GITHUB (Заполни, когда создашь репозиторий)
+        const GITHUB_CONFIG = {
+            user: "ТВОЙ_ЮЗЕР_НА_GITHUB",
+            repo: "ТВОЙ_РЕПОЗИТОРИЙ",
+            branch: "main",
+            filePath: "путь/к/файлу/news.txt" // например: texts/announcements.txt
+        };
+
+        // Логика последовательной загрузки строк boot-лога
+        const totalLines = 10;
+        let currentLine = 1;
+
+        function showBootLog() {
+            if (currentLine <= totalLines) {
+                document.getElementById(`line${currentLine}`).style.visibility = 'visible';
+                currentLine++;
+                setTimeout(showBootLog, Math.random() * 300 + 150); // Случайная скорость строк
+            } else {
+                // Показ прогресс-бара после вывода строк
+                document.getElementById('progress-container').style.display = 'block';
+                simulateProgressBar();
+            }
+        }
+
+        function simulateProgressBar() {
+            const bar = document.getElementById('progress-bar');
+            let width = 0;
+            const interval = setInterval(() => {
+                if (width >= 100) {
+                    clearInterval(interval);
+                    // Показ лицензионного соглашения после загрузки бар-прогресса
+                    document.getElementById('license-container').style.display = 'block';
+                } else {
+                    width += Math.random() * 8;
+                    if (width > 100) width = 100;
+                    bar.style.width = width + '%';
+                }
+            }, 100);
+        }
+
+        // Запуск лога при старте страницы
+        window.onload = function() {
+            showBootLog();
+            initDragAndDrop();
+        };
+
+        function acceptLicense() {
+            document.getElementById('boot-screen').style.display = 'none';
+        }
+
+        // ЛОГИКА ОКОН (Открыть, закрыть, фокус)
+        function openWindow(id) {
+            const win = document.getElementById(id);
+            win.style.display = 'flex';
+            focusWindow(win);
+        }
+
+        function closeWindow(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function focusWindow(activeWin) {
+            document.querySelectorAll('.window').forEach(win => {
+                win.classList.add('inactive');
+                if(win.style.zIndex > 10) win.style.zIndex = 10;
+            });
+            activeWin.classList.remove('inactive');
+            activeWin.style.zIndex = 100;
+        }
+
+        // ДЛЯ КНОПОК ЧАТА И ПЕРСОН (Маленькое окно по центру с ошибкой)
+        let spinnerInterval;
+        function openCenteredBox(title) {
+            const box = document.getElementById('win-centered');
+            const bTitle = document.getElementById('centered-title');
+            const bContent = document.getElementById('centered-content');
+            
+            bTitle.textContent = title;
+            box.style.display = 'flex';
+            
+            // Центрирование окна вручную
+            box.style.top = '50%';
+            box.style.left = '50%';
+            box.style.transform = 'translate(-50%, -50%)';
+            
+            // Спиннер загрузки палочки (- \ | /)
+            const signs = ['-', '\\', '|', '/'];
+            let idx = 0;
+            bContent.innerHTML = `<div class="center-msg-box"><div class="spinner">Соединение.. [${signs[idx]}]</div></div>`;
+            
+            spinnerInterval = setInterval(() => {
+                idx = (idx + 1) % signs.length;
+                const spinnerDiv = bContent.querySelector('.spinner');
+                if (spinnerDiv) {
+                    spinnerDiv.textContent = `Соединение.. [${signs[idx]}]`;
+                }
+            }, 200);
+
+            // Через 2.5 секунды выбиваем системную канцелярскую ошибку
+            setTimeout(() => {
+                clearInterval(spinnerInterval);
+                bContent.innerHTML = `
+                    <div class="center-msg-box">
+                        <div class="err-text">[!!] КРИТИЧЕСКАЯ ОШИБКА СВЯЗИ</div>
+                        <div style="font-size:12px; margin: 10px 0; text-align:center;">
+                            Запрос отклонен ИИ-модулем 'Равнодушие'. Посредник занят кремацией улик. Повторите попытку никогда.
+                        </div>
+                        <button class="terminal-btn" onclick="closeCenteredBox()">ОК</button>
+                    </div>
+                `;
+            }, 2500);
+        }
+
+        function closeCenteredBox() {
+            clearInterval(spinnerInterval);
+            document.getElementById('win-centered').style.display = 'none';
+        }
+
+        // ИНТЕГРАЦИЯ С GITHUB (Считывание raw-текста с поддержкой оформления кода)
+        function fetchGitHubData() {
+            const body = document.getElementById('news-body');
+            body.innerHTML = "УСТАНОВКА СОЕДИНЕНИЯ С СЕРВЕРОМ FRANKSFALL... ПОДОЖДИТЕ...";
+
+            const url = `https://raw.githubusercontent.com/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${GITHUB_CONFIG.filePath}`;
+
+            fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Статус ошибки сервера: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(data => {
+                // Применение innerHTML позволяет коду оформления внутри TXT (тегам) срабатывать и рендериться на странице
+                body.innerHTML = data;
+            })
+            .catch(error => {
+                body.innerHTML = `
+                    <span class="boot-err">[!!] ОШИБКА ОПЕРАЦИИ СИНХРОНИЗАЦИИ</span><br><br>
+                    Не удалось получить шифровку из репозитория.<br>
+                    Проверьте настройки конфигурации репозитория в коде скрипта или статус сети.<br><br>
+                    <small style="color:#555;">Детали: ${error.message}</small>
+                `;
+            });
+        }
+
+        // СКРИПТ ПЕРЕТАСКИВАНИЯ И РЕЗАЙЗА ОКАН (DRAG & DROP)
+        function initDragAndDrop() {
+            document.querySelectorAll('.window').forEach(win => {
+                const header = win.querySelector('.window-header');
+                
+                // Фокус при клике на любое место окна
+                win.addEventListener('mousedown', () => focusWindow(win));
+
+                // Перетаскивание
+                header.onmousedown = function(e) {
+                    if (e.target.classList.contains('win-btn')) return;
+                    
+                    // Сбрасываем центрирование translate если окно было по центру
+                    if(win.style.transform) {
+                        win.style.transform = 'none';
+                        win.style.top = win.offsetTop + 'px';
+                        win.style.left = win.offsetLeft + 'px';
+                    }
+
+                    let shiftX = e.clientX - win.getBoundingClientRect().left;
+                    let shiftY = e.clientY - win.getBoundingClientRect().top;
+
+                    function moveAt(clientX, clientY) {
+                        win.style.left = clientX - shiftX + 'px';
+                        win.style.top = clientY - shiftY + 'px';
+                    }
+
+                    function onMouseMove(e) {
+                        moveAt(e.clientX, e.clientY);
+                    }
+
+                    document.addEventListener('mousemove', onMouseMove);
+
+                    document.onmouseup = function() {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.onmouseup = null;
+                    };
+                };
+
+                // Изменение размеров окна (Resize)
+                const resizer = win.querySelector('.resize-handle');
+                if (resizer) {
+                    resizer.onmousedown = function(e) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        
+                        let startWidth = win.offsetWidth;
+                        let startHeight = win.offsetHeight;
+                        let startX = e.clientX;
+                        let startY = e.clientY;
+
+                        function doResize(moveEvent) {
+                            win.style.width = startWidth + (moveEvent.clientX - startX) + 'px';
+                            win.style.height = startHeight + (moveEvent.clientY - startY) + 'px';
+                        }
+
+                        function stopResize() {
+                            document.removeEventListener('mousemove', doResize);
+                            document.removeEventListener('mouseup', stopResize);
+                        }
+
+                        document.addEventListener('mousemove', doResize);
+                        document.addEventListener('mouseup', stopResize);
+                    };
+                }
+            });
+        }
+    </script>
+</body>
+</html>
