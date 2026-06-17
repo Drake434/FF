@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>FF OS - Implant Interface v4.01</title>
+    <title>FF OS - Implant Interface v4.05</title>
     <style>
         /* Основные настройки ретро-стиля */
         * {
@@ -48,7 +48,7 @@
             100% { opacity: 0.15; }
         }
 
-        /* ЭКРАН ЗАГРУЗКИ (BOOT SEQUENCE) */
+        /* ЭКРАН ЗАГРУЗКИ */
         #boot-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -161,14 +161,13 @@
             position: absolute;
             background-color: #000000;
             border: 2px solid #00d2ff;
-            min-width: 250px;
-            min-height: 150px;
+            min-width: 450px;
+            min-height: 250px;
             display: flex;
             flex-direction: column;
             z-index: 10;
             box-shadow: 0 0 15px rgba(0, 210, 255, 0.1);
         }
-        /* Стиль для неактивного окна (более темная рамка) */
         .window.inactive {
             border-color: #00667a;
         }
@@ -210,14 +209,14 @@
         }
 
         .window-content {
-            padding: 15px;
+            padding: 0;
             flex-grow: 1;
-            overflow: auto;
+            overflow: hidden;
             font-size: 14px;
             line-height: 1.4;
         }
 
-        /* Изменение размеров (Resize handler) */
+        /* Изменение размеров */
         .resize-handle {
             position: absolute;
             width: 10px;
@@ -228,27 +227,63 @@
             cursor: se-resize;
         }
 
-        /* СПЕЦИФИКА ПРИЛОЖЕНИЙ */
-        /* Новости */
-        #news-container {
+        /* ДВУХПАНЕЛЬНЫЙ ИНТЕРФЕЙС ДЛЯ ИНФО_ДАННЫХ */
+        #news-layout {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
+            width: 100%;
             height: 100%;
         }
-        #news-body {
-            border: 1px solid #00d2ff;
-            padding: 10px;
-            flex-grow: 1;
+        #news-sidebar {
+            width: 180px;
+            border-right: 2px solid #00d2ff;
             overflow-y: auto;
-            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: rgba(0, 43, 53, 0.1);
+            flex-shrink: 0;
         }
-        /* Внутреннее оформление из TXT теперь рендерится через innerHTML */
-        #news-body span, #news-body b, #news-body i {
-            user-select: text;
+        .window.inactive #news-sidebar {
+            border-right-color: #00667a;
+        }
+        .sidebar-btn {
+            background: transparent;
+            border: 1px solid #00d2ff;
+            color: #00d2ff;
+            padding: 6px 10px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+        .sidebar-btn:hover, .sidebar-btn.active {
+            background-color: #00d2ff;
+            color: #000000;
+        }
+        #news-body {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.3);
+            white-space: pre-wrap; /* Слушается Enter из txt */
+        }
+        
+        /* Авто-настройка картинок внутри инфо-окна */
+        #news-body img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 15px 0;
+            border: 1px solid #00d2ff;
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
         }
 
-        /* Анимация палочки загрузки */
+        /* Элементы спиннера */
         .spinner {
             font-size: 24px;
             text-align: center;
@@ -272,15 +307,15 @@
 <body>
 
     <div id="boot-screen">
-        <div class="boot-line" id="line1">> FF_OS [Version 4.01.2026-IMPLANT]</div>
+        <div class="boot-line" id="line1">> FF_OS [Version 4.05.2026-IMPLANT]</div>
         <div class="boot-line" id="line2">> КОРПОРАТИВНАЯ КБ-СЕТЬ ФРАНКСФОЛЛ: ИНСТРУМЕНТАРИЙ ОПЕРАТИВНИКА</div>
         <div class="boot-line" id="line3">> Инициализация нейросети импланта... <span class="boot-ok">[OK]</span></div>
-        <div class="boot-line" id="line4">> Проверка локальной директории Азамар_Карантин... <span class="boot-ok">[OK]</span></div>
-        <div class="boot-line" id="line5">> Подключение к спутниковому ретранслятору... <span class="boot-warn">[ПОТЕРЯ ПАКЕТОВ 14%]</span></div>
+        <div class="boot-line" id="line4">> Сканирование локальной директории Азамар... <span class="boot-ok">[OK]</span></div>
+        <div class="boot-line" id="line5">> Подключение к удаленному серверу GitHub... <span class="boot-ok">[ПОДКЛЮЧЕНО]</span></div>
         <div class="boot-line" id="line6">> Тестирование заряда встроенной микро-взрывчатки... <span class="boot-ok">[СТАБИЛЬНО]</span></div>
         <div class="boot-line" id="line7">> Синхронизация жизненных показателей наемника... <span class="boot-ok">[МАРКЕРЫ ЖИЗНИ: НОРМА]</span></div>
         <div class="boot-line" id="line8">> Проверка протокола автоматической зачистки улик... <span class="boot-ok">[АКТИВЕН]</span></div>
-        <div class="boot-line" id="line9">> Попытка несанкционированного удаления прошивки... <span class="boot-err">[ПРЕСЕЧЕНО В СЕКУНДУ 0.02]</span></div>
+        <div class="boot-line" id="line9">> Парсинг директории цифровых зашифрованных логов... <span class="boot-ok">[ОК]</span></div>
         <div class="boot-line" id="line10">> Все системы функционируют в штатном режиме равнодушия.</div>
         
         <div id="progress-container">
@@ -314,7 +349,7 @@
         </div>
     </div>
 
-    <div id="win-news" class="window" style="width: 550px; height: 400px; top: 100px; left: 150px; display: none;">
+    <div id="win-news" class="window" style="width: 650px; height: 450px; top: 80px; left: 120px; display: none;">
         <div class="window-header">
             <div class="window-title">Новости и информация</div>
             <div class="window-controls">
@@ -322,13 +357,11 @@
             </div>
         </div>
         <div class="window-content">
-            <div id="news-container">
-                <div>
-                    <button class="terminal-btn" onclick="fetchGitHubData()">ПОЛУЧИТЬ СВЕЖИЕ ДАННЫЕ С СЕРВЕРА</button>
-                </div>
+            <div id="news-layout">
+                <div id="news-sidebar">
+                    </div>
                 <div id="news-body">
-                    Ожидание запроса данных... <br>
-                    Нажмите кнопку выше для синхронизации с удаленным репозиторием.
+                    Выберите инфо-пакет из списка слева для расшифровки.
                 </div>
             </div>
         </div>
@@ -342,30 +375,27 @@
                 <button class="win-btn" onclick="closeCenteredBox()">[X]</button>
             </div>
         </div>
-        <div class="window-content" id="centered-content">
-            </div>
+        <div class="window-content" id="centered-content"></div>
     </div>
 
     <script>
-        // НАСТРОЙКИ СВЯЗИ С GITHUB (Заполни, когда создашь репозиторий)
+        // АВТО-КОНФИГУРАЦИЯ ПОД НАПРАВЛЕННЫЙ РЕПОЗИТОРИЙ
         const GITHUB_CONFIG = {
-            user: "ТВОЙ_ЮЗЕР_НА_GITHUB",
-            repo: "ТВОЙ_РЕПОЗИТОРИЙ",
-            branch: "main",
-            filePath: "путь/к/файлу/news.txt" // например: texts/announcements.txt
+            user: "Drake434",
+            repo: "FF",
+            branch: "main"
         };
 
-        // Логика последовательной загрузки строк boot-лога
         const totalLines = 10;
         let currentLine = 1;
+        let loadedFilesData = {}; // Объект для хранения скачанного контента при запуске
 
         function showBootLog() {
             if (currentLine <= totalLines) {
                 document.getElementById(`line${currentLine}`).style.visibility = 'visible';
                 currentLine++;
-                setTimeout(showBootLog, Math.random() * 300 + 150); // Случайная скорость строк
+                setTimeout(showBootLog, Math.random() * 200 + 100);
             } else {
-                // Показ прогресс-бара после вывода строк
                 document.getElementById('progress-container').style.display = 'block';
                 simulateProgressBar();
             }
@@ -377,27 +407,119 @@
             const interval = setInterval(() => {
                 if (width >= 100) {
                     clearInterval(interval);
-                    // Показ лицензионного соглашения после загрузки бар-прогресса
                     document.getElementById('license-container').style.display = 'block';
                 } else {
-                    width += Math.random() * 8;
+                    width += Math.random() * 12;
                     if (width > 100) width = 100;
                     bar.style.width = width + '%';
                 }
-            }, 100);
+            }, 80);
         }
 
-        // Запуск лога при старте страницы
+        // Запуск при старте страницы
         window.onload = function() {
             showBootLog();
             initDragAndDrop();
+            fetchAllDigitalLogs(); // Автоматический запрос к гитхабу сразу при старте
         };
 
         function acceptLicense() {
             document.getElementById('boot-screen').style.display = 'none';
         }
 
-        // ЛОГИКА ОКОН (Открыть, закрыть, фокус)
+        // КРИТИЧЕСКАЯ ФУНКЦИЯ: Сканирование репозитория и парсинг "только цифр"
+        function fetchAllDigitalLogs() {
+            const sidebar = document.getElementById('news-sidebar');
+            sidebar.innerHTML = `<span style="font-size:11px;color:#00667a;">Поиск файлов...</span>`;
+
+            // Обращаемся к API гитхаба для чтения содержимого корня репозитория
+            const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/contents/?ref=${GITHUB_CONFIG.branch}`;
+
+            fetch(apiUrl)
+            .then(res => {
+                if(!res.ok) throw new Error("API Error");
+                return res.json();
+            })
+            .then(items => {
+                // Фильтруем файлы: имя должно состоять только из цифр, расширение строго .txt
+                const numericFiles = items.filter(item => {
+                    if (item.type !== 'file') return false;
+                    const parts = item.name.split('.');
+                    if (parts.length !== 2 || parts[1] !== 'txt') return false;
+                    return /^\d+$/.test(parts[0]); // Регулярка проверяет, что до точки только цифры
+                });
+
+                if(numericFiles.length === 0) {
+                    sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Цифровые пакеты не найдены</span>`;
+                    return;
+                }
+
+                // Сортируем файлы по математическому возрастанию числового имени (1, 2, 10...)
+                numericFiles.sort((a, b) => parseInt(a.name) - parseInt(b.name));
+
+                sidebar.innerHTML = ""; // Очищаем сайдбар для вывода кнопок
+                
+                // Для каждого числового файла делаем fetch его содержимого
+                numericFiles.forEach(file => {
+                    fetch(file.download_url)
+                    .then(res => res.text())
+                    .then(text => {
+                        // Бьем текст на строчки, чтобы проверить первую на наличие "name: "
+                        const lines = text.split(/\r?\n/);
+                        let firstLine = lines[0] ? lines[0].trim() : "";
+                        let btnTitle = file.name; // Запасное имя кнопки — имя файла
+                        let finalContent = text;
+
+                        if (firstLine.startsWith("name:")) {
+                            btnTitle = firstLine.replace("name:", "").trim();
+                            // Удаляем первую строчку с name: из контента, чтобы она не дублировалась в тексте новости
+                            lines.shift();
+                            finalContent = lines.join("\n");
+                        }
+
+                        // Сохраняем обработанный контент в глобальный объект
+                        loadedFilesData[file.name] = {
+                            title: btnTitle,
+                            content: finalContent
+                        };
+
+                        // Создаем и рендерим кнопку в сайдбаре
+                        const btn = document.createElement('button');
+                        btn.className = 'sidebar-btn';
+                        btn.textContent = btnTitle;
+                        btn.onclick = () => renderLogContent(file.name, btn);
+                        sidebar.appendChild(btn);
+                    });
+                });
+            })
+            .catch(err => {
+                sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Ошибка API связи</span>`;
+            });
+        }
+
+        // Функция вывода текста новости и конвертации текстовых ссылок в теги картинок
+        function renderLogContent(fileName, btnElement) {
+            document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+
+            const body = document.getElementById('news-body');
+            let fileData = loadedFilesData[fileName];
+            
+            if(!fileData) return;
+
+            let textContent = fileData.content;
+
+            // РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ: Ищет в тексте ссылки на картинки (http...png/jpg/webp/gif)
+            const imgRegex = /(https?:\/\/[^\s\n\r]+\.(?:png|jpg|jpeg|gif|webp))/gi;
+            
+            // Заменяем текстовую ссылку на полноценный HTML-тег картинки <img>
+            textContent = textContent.replace(imgRegex, '<img src="$1" alt="Изображение импланта">');
+
+            // Выводим все в тело через innerHTML, чтобы сработали и картинки, и HTML-оформление из промта
+            body.innerHTML = textContent;
+        }
+
+        // ЛОГИКА ОКОН (Фокус, Драг-энд-Дроп)
         function openWindow(id) {
             const win = document.getElementById(id);
             win.style.display = 'flex';
@@ -417,7 +539,6 @@
             activeWin.style.zIndex = 100;
         }
 
-        // ДЛЯ КНОПОК ЧАТА И ПЕРСОН (Маленькое окно по центру с ошибкой)
         let spinnerInterval;
         function openCenteredBox(title) {
             const box = document.getElementById('win-centered');
@@ -426,13 +547,10 @@
             
             bTitle.textContent = title;
             box.style.display = 'flex';
-            
-            // Центрирование окна вручную
             box.style.top = '50%';
             box.style.left = '50%';
             box.style.transform = 'translate(-50%, -50%)';
             
-            // Спиннер загрузки палочки (- \ | /)
             const signs = ['-', '\\', '|', '/'];
             let idx = 0;
             bContent.innerHTML = `<div class="center-msg-box"><div class="spinner">Соединение.. [${signs[idx]}]</div></div>`;
@@ -440,12 +558,9 @@
             spinnerInterval = setInterval(() => {
                 idx = (idx + 1) % signs.length;
                 const spinnerDiv = bContent.querySelector('.spinner');
-                if (spinnerDiv) {
-                    spinnerDiv.textContent = `Соединение.. [${signs[idx]}]`;
-                }
+                if (spinnerDiv) spinnerDiv.textContent = `Соединение.. [${signs[idx]}]`;
             }, 200);
 
-            // Через 2.5 секунды выбиваем системную канцелярскую ошибку
             setTimeout(() => {
                 clearInterval(spinnerInterval);
                 bContent.innerHTML = `
@@ -457,7 +572,7 @@
                         <button class="terminal-btn" onclick="closeCenteredBox()">ОК</button>
                     </div>
                 `;
-            }, 2500);
+            }, 2300);
         }
 
         function closeCenteredBox() {
@@ -465,47 +580,14 @@
             document.getElementById('win-centered').style.display = 'none';
         }
 
-        // ИНТЕГРАЦИЯ С GITHUB (Считывание raw-текста с поддержкой оформления кода)
-        function fetchGitHubData() {
-            const body = document.getElementById('news-body');
-            body.innerHTML = "УСТАНОВКА СОЕДИНЕНИЯ С СЕРВЕРОМ FRANKSFALL... ПОДОЖДИТЕ...";
-
-            const url = `https://raw.githubusercontent.com/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${GITHUB_CONFIG.filePath}`;
-
-            fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Статус ошибки сервера: ${response.status}`);
-                }
-                return response.text();
-            })
-            .then(data => {
-                // Применение innerHTML позволяет коду оформления внутри TXT (тегам) срабатывать и рендериться на странице
-                body.innerHTML = data;
-            })
-            .catch(error => {
-                body.innerHTML = `
-                    <span class="boot-err">[!!] ОШИБКА ОПЕРАЦИИ СИНХРОНИЗАЦИИ</span><br><br>
-                    Не удалось получить шифровку из репозитория.<br>
-                    Проверьте настройки конфигурации репозитория в коде скрипта или статус сети.<br><br>
-                    <small style="color:#555;">Детали: ${error.message}</small>
-                `;
-            });
-        }
-
-        // СКРИПТ ПЕРЕТАСКИВАНИЯ И РЕЗАЙЗА ОКАН (DRAG & DROP)
         function initDragAndDrop() {
             document.querySelectorAll('.window').forEach(win => {
                 const header = win.querySelector('.window-header');
-                
-                // Фокус при клике на любое место окна
                 win.addEventListener('mousedown', () => focusWindow(win));
 
-                // Перетаскивание
                 header.onmousedown = function(e) {
                     if (e.target.classList.contains('win-btn')) return;
                     
-                    // Сбрасываем центрирование translate если окно было по центру
                     if(win.style.transform) {
                         win.style.transform = 'none';
                         win.style.top = win.offsetTop + 'px';
@@ -520,11 +602,8 @@
                         win.style.top = clientY - shiftY + 'px';
                     }
 
-                    function onMouseMove(e) {
-                        moveAt(e.clientX, e.clientY);
-                    }
-
                     document.addEventListener('mousemove', onMouseMove);
+                    function onMouseMove(e) { moveAt(e.clientX, e.clientY); }
 
                     document.onmouseup = function() {
                         document.removeEventListener('mousemove', onMouseMove);
@@ -532,13 +611,11 @@
                     };
                 };
 
-                // Изменение размеров окна (Resize)
                 const resizer = win.querySelector('.resize-handle');
                 if (resizer) {
                     resizer.onmousedown = function(e) {
                         e.stopPropagation();
                         e.preventDefault();
-                        
                         let startWidth = win.offsetWidth;
                         let startHeight = win.offsetHeight;
                         let startX = e.clientX;
@@ -548,12 +625,10 @@
                             win.style.width = startWidth + (moveEvent.clientX - startX) + 'px';
                             win.style.height = startHeight + (moveEvent.clientY - startY) + 'px';
                         }
-
                         function stopResize() {
                             document.removeEventListener('mousemove', doResize);
                             document.removeEventListener('mouseup', stopResize);
                         }
-
                         document.addEventListener('mousemove', doResize);
                         document.addEventListener('mouseup', stopResize);
                     };
