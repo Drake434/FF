@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>FF OS - Implant Interface v4.05</title>
+    <title>FF OS - Implant Interface v4.10</title>
     <style>
         /* Основные настройки ретро-стиля */
         * {
@@ -18,6 +18,24 @@
             color: #00d2ff; /* Сине-голубой основной цвет */
             font-family: 'Courier New', Courier, monospace;
             overflow: hidden;
+        }
+
+        /* КАССТОМНЫЙ СТИЛЬ ДЛЯ ПОЛЗУНКОВ (Scrollbar) */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.8);
+            border-left: 1px solid rgba(0, 210, 255, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #00667a;
+            border-radius: 0px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00d2ff;
+            box-shadow: 0 0 5px #00d2ff;
         }
 
         /* Эффект старого ЭЛТ-монитора (сканлайны и мерцание) */
@@ -216,18 +234,36 @@
             line-height: 1.4;
         }
 
-        /* Изменение размеров */
+        /* УГОЛОК ДЛЯ РАСШИРЕНИЯ ОКНА (Resize handler) */
         .resize-handle {
             position: absolute;
-            width: 10px;
-            height: 10px;
-            background: transparent;
-            right: 0;
-            bottom: 0;
+            width: 14px;
+            height: 14px;
+            right: 2px;
+            bottom: 2px;
             cursor: se-resize;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            z-index: 105;
+        }
+        /* Внешний вид уголка в стиле ретро-засечек */
+        .resize-handle::after {
+            content: "//";
+            font-size: 10px;
+            line-height: 8px;
+            color: #00d2ff;
+            font-weight: bold;
+            transform: rotate(-45deg);
+            margin-right: -2px;
+            margin-bottom: 2px;
+            opacity: 0.7;
+        }
+        .window.inactive .resize-handle::after {
+            color: #00667a;
         }
 
-        /* ДВУХПАНЕЛЬНЫЙ ИНТЕРФЕЙС ДЛЯ ИНФО_ДАННЫХ */
+        /* ДВУХПАНЕЛЬНЫЙ ИНТЕРФЕЙС */
         #news-layout {
             display: flex;
             width: 100%;
@@ -270,10 +306,10 @@
             padding: 15px;
             overflow-y: auto;
             background-color: rgba(0, 0, 0, 0.3);
-            white-space: pre-wrap; /* Слушается Enter из txt */
+            white-space: pre-wrap; /* Воспринимает обычные нажатия Enter из файлов */
         }
         
-        /* Авто-настройка картинок внутри инфо-окна */
+        /* Авто-картинки */
         #news-body img {
             max-width: 100%;
             height: auto;
@@ -283,7 +319,7 @@
             box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
         }
 
-        /* Элементы спиннера */
+        /* Спиннеры */
         .spinner {
             font-size: 24px;
             text-align: center;
@@ -307,7 +343,7 @@
 <body>
 
     <div id="boot-screen">
-        <div class="boot-line" id="line1">> FF_OS [Version 4.05.2026-IMPLANT]</div>
+        <div class="boot-line" id="line1">> FF_OS [Version 4.10.2026-IMPLANT]</div>
         <div class="boot-line" id="line2">> КОРПОРАТИВНАЯ КБ-СЕТЬ ФРАНКСФОЛЛ: ИНСТРУМЕНТАРИЙ ОПЕРАТИВНИКА</div>
         <div class="boot-line" id="line3">> Инициализация нейросети импланта... <span class="boot-ok">[OK]</span></div>
         <div class="boot-line" id="line4">> Сканирование локальной директории Азамар... <span class="boot-ok">[OK]</span></div>
@@ -358,8 +394,7 @@
         </div>
         <div class="window-content">
             <div id="news-layout">
-                <div id="news-sidebar">
-                    </div>
+                <div id="news-sidebar"></div>
                 <div id="news-body">
                     Выберите инфо-пакет из списка слева для расшифровки.
                 </div>
@@ -376,10 +411,10 @@
             </div>
         </div>
         <div class="window-content" id="centered-content"></div>
+        <div class="resize-handle"></div>
     </div>
 
     <script>
-        // АВТО-КОНФИГУРАЦИЯ ПОД НАПРАВЛЕННЫЙ РЕПОЗИТОРИЙ
         const GITHUB_CONFIG = {
             user: "Drake434",
             repo: "FF",
@@ -388,7 +423,7 @@
 
         const totalLines = 10;
         let currentLine = 1;
-        let loadedFilesData = {}; // Объект для хранения скачанного контента при запуске
+        let loadedFilesData = {};
 
         function showBootLog() {
             if (currentLine <= totalLines) {
@@ -416,23 +451,20 @@
             }, 80);
         }
 
-        // Запуск при старте страницы
         window.onload = function() {
             showBootLog();
             initDragAndDrop();
-            fetchAllDigitalLogs(); // Автоматический запрос к гитхабу сразу при старте
+            fetchAllDigitalLogs();
         };
 
         function acceptLicense() {
             document.getElementById('boot-screen').style.display = 'none';
         }
 
-        // КРИТИЧЕСКАЯ ФУНКЦИЯ: Сканирование репозитория и парсинг "только цифр"
         function fetchAllDigitalLogs() {
             const sidebar = document.getElementById('news-sidebar');
             sidebar.innerHTML = `<span style="font-size:11px;color:#00667a;">Поиск файлов...</span>`;
 
-            // Обращаемся к API гитхаба для чтения содержимого корня репозитория
             const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/contents/?ref=${GITHUB_CONFIG.branch}`;
 
             fetch(apiUrl)
@@ -441,49 +473,41 @@
                 return res.json();
             })
             .then(items => {
-                // Фильтруем файлы: имя должно состоять только из цифр, расширение строго .txt
                 const numericFiles = items.filter(item => {
                     if (item.type !== 'file') return false;
                     const parts = item.name.split('.');
                     if (parts.length !== 2 || parts[1] !== 'txt') return false;
-                    return /^\d+$/.test(parts[0]); // Регулярка проверяет, что до точки только цифры
+                    return /^\d+$/.test(parts[0]);
                 });
 
                 if(numericFiles.length === 0) {
-                    sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Цифровые пакеты не найдены</span>`;
+                    sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Логи не найдены</span>`;
                     return;
                 }
 
-                // Сортируем файлы по математическому возрастанию числового имени (1, 2, 10...)
                 numericFiles.sort((a, b) => parseInt(a.name) - parseInt(b.name));
-
-                sidebar.innerHTML = ""; // Очищаем сайдбар для вывода кнопок
+                sidebar.innerHTML = "";
                 
-                // Для каждого числового файла делаем fetch его содержимого
                 numericFiles.forEach(file => {
                     fetch(file.download_url)
                     .then(res => res.text())
                     .then(text => {
-                        // Бьем текст на строчки, чтобы проверить первую на наличие "name: "
                         const lines = text.split(/\r?\n/);
                         let firstLine = lines[0] ? lines[0].trim() : "";
-                        let btnTitle = file.name; // Запасное имя кнопки — имя файла
+                        let btnTitle = file.name;
                         let finalContent = text;
 
                         if (firstLine.startsWith("name:")) {
                             btnTitle = firstLine.replace("name:", "").trim();
-                            // Удаляем первую строчку с name: из контента, чтобы она не дублировалась в тексте новости
                             lines.shift();
                             finalContent = lines.join("\n");
                         }
 
-                        // Сохраняем обработанный контент в глобальный объект
                         loadedFilesData[file.name] = {
                             title: btnTitle,
                             content: finalContent
                         };
 
-                        // Создаем и рендерим кнопку в сайдбаре
                         const btn = document.createElement('button');
                         btn.className = 'sidebar-btn';
                         btn.textContent = btnTitle;
@@ -493,33 +517,25 @@
                 });
             })
             .catch(err => {
-                sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Ошибка API связи</span>`;
+                sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Ошибка связи API</span>`;
             });
         }
 
-        // Функция вывода текста новости и конвертации текстовых ссылок в теги картинок
         function renderLogContent(fileName, btnElement) {
             document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
             if(btnElement) btnElement.classList.add('active');
 
             const body = document.getElementById('news-body');
             let fileData = loadedFilesData[fileName];
-            
             if(!fileData) return;
 
             let textContent = fileData.content;
-
-            // РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ: Ищет в тексте ссылки на картинки (http...png/jpg/webp/gif)
             const imgRegex = /(https?:\/\/[^\s\n\r]+\.(?:png|jpg|jpeg|gif|webp))/gi;
-            
-            // Заменяем текстовую ссылку на полноценный HTML-тег картинки <img>
-            textContent = textContent.replace(imgRegex, '<img src="$1" alt="Изображение импланта">');
+            textContent = textContent.replace(imgRegex, '<img src="$1" alt="Изображение">');
 
-            // Выводим все в тело через innerHTML, чтобы сработали и картинки, и HTML-оформление из промта
             body.innerHTML = textContent;
         }
 
-        // ЛОГИКА ОКОН (Фокус, Драг-энд-Дроп)
         function openWindow(id) {
             const win = document.getElementById(id);
             win.style.display = 'flex';
@@ -586,7 +602,7 @@
                 win.addEventListener('mousedown', () => focusWindow(win));
 
                 header.onmousedown = function(e) {
-                    if (e.target.classList.contains('win-btn')) return;
+                    if (e.target.classList.contains('win-btn') || e.target.classList.contains('resize-handle')) return;
                     
                     if(win.style.transform) {
                         win.style.transform = 'none';
