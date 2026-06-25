@@ -916,12 +916,16 @@
             const canvas = document.getElementById('map-canvas');
             const container = document.getElementById('map-container');
 
-            const mapImgUrl = `https://raw.githubusercontent.com/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/AZAMAR.jpg`;
-            const mapImg = document.getElementById('map-img');
-            mapImg.src = mapImgUrl;
-            mapImg.onerror = function() {
-                mapImg.src = `https://raw.githubusercontent.com/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/AZAMAR.png`;
-            };
+const mapImg = document.getElementById('map-img');
+            const mapFormats = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
+            let formatIdx = 0;
+            function tryNextFormat() {
+                if (formatIdx >= mapFormats.length) return;
+                mapImg.src = `https://raw.githubusercontent.com/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/AZAMAR.${mapFormats[formatIdx]}`;
+                formatIdx++;
+            }
+            mapImg.onerror = tryNextFormat;
+            tryNextFormat();
             mapImg.onload = function() {
                 mapImageNaturalW = mapImg.naturalWidth;
                 mapImageNaturalH = mapImg.naturalHeight;
