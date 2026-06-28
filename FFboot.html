@@ -733,6 +733,8 @@
         };
         firebase.initializeApp(firebaseConfig);
         const fbDb = firebase.database();
+        function toKey(filename) { return filename.replace(/\./g, '_dot_'); }
+        function fromKey(key)    { return key.replace(/_dot_/g, '.'); }
 
         const totalLines = 10;
         let currentLine = 1;
@@ -810,7 +812,9 @@
                 )).then(results => {
                     allLogFilesCache = results;
                     fbDb.ref('published_logs').on('value', function(snapshot) {
-                        publishedLogsCache = snapshot.val() || {};
+                        const raw = snapshot.val() || {};
+                        publishedLogsCache = {};
+                        Object.keys(raw).forEach(k => { publishedLogsCache[fromKey(k)] = raw[k]; });
                         reconcileAndRenderNews();
                     });
                 });
@@ -826,7 +830,7 @@
 
             const visible = allLogFilesCache.filter(({ file }) => {
                 if (publishedLogsCache[file.name] === undefined) {
-                    updates[file.name] = false;
+                    updates[toKey(file.name)] = false;
                     return false;
                 }
                 return publishedLogsCache[file.name] === true;
