@@ -468,6 +468,10 @@
         let allFiles = [];           // файлы с GitHub
         let publishedState = {};     // текущее состояние из Firebase
 
+        // Firebase не разрешает точки в ключах — заменяем на _dot_
+        function toKey(filename) { return filename.replace(/\./g, '_dot_'); }
+        function fromKey(key)    { return key.replace(/_dot_/g, '.'); }
+
         // ── Часы ──────────────────────────────────────────────
         function updateClock() {
             const now = new Date();
@@ -500,7 +504,9 @@
 
             // Слушаем Firebase — мгновенно обновляем при изменении
             fbDb.ref('published_logs').on('value', function(snapshot) {
-                publishedState = snapshot.val() || {};
+                const raw = snapshot.val() || {};
+                publishedState = {};
+                Object.keys(raw).forEach(k => { publishedState[fromKey(k)] = raw[k]; });
                 renderTable();
             });
 
@@ -544,7 +550,7 @@
                     const updates = {};
                     files.forEach(f => {
                         if (publishedState[f.name] === undefined) {
-                            updates[f.name] = false;
+                            updates[toKey(f.name)] = false;
                         }
                     });
                     if (Object.keys(updates).length > 0) {
@@ -618,19 +624,19 @@
 
         // ── Переключение лога ─────────────────────────────────
         function toggleLog(fileName, value) {
-            fbDb.ref('published_logs/' + fileName).set(value);
+            fbDb.ref('published_logs/' + toKey(fileName)).set(value);
         }
 
         // ── Показать / скрыть все ─────────────────────────────
         function showAllLogs() {
             const updates = {};
-            allFiles.forEach(f => { updates[f.name] = true; });
+            allFiles.forEach(f => { updates[toKey(f.name)] = true; });
             fbDb.ref('published_logs').update(updates);
         }
 
         function hideAllLogs() {
             const updates = {};
-            allFiles.forEach(f => { updates[f.name] = false; });
+            allFiles.forEach(f => { updates[toKey(f.name)] = false; });
             fbDb.ref('published_logs').update(updates);
         }
 
