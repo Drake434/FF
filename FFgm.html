@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>FF OS - GM PANEL v1.0</title>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            color: #ffb000;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        /* CRT эффект */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.22) 50%),
+                        linear-gradient(90deg, rgba(255,80,0,0.06), rgba(255,160,0,0.02), rgba(255,60,0,0.06));
+            z-index: 99999;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: rgba(20, 10, 0, 0.08);
+            opacity: 0;
+            z-index: 99998;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+        @keyframes flicker {
+            0%   { opacity: 0.12; }
+            50%  { opacity: 0.22; }
+            100% { opacity: 0.12; }
+        }
+
+        /* Скроллбар */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.8); border-left: 1px solid rgba(255,176,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: #7a4400; }
+        ::-webkit-scrollbar-thumb:hover { background: #ffb000; box-shadow: 0 0 5px #ffb000; }
+
+        /* ===================== ЭКРАН ЗАГРУЗКИ ===================== */
+        #boot-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+        }
+
+        #boot-art {
+            color: #ffb000;
+            font-size: clamp(7px, 1.2vw, 13px);
+            line-height: 1.15;
+            white-space: pre;
+            text-shadow: 0 0 8px #ffb000, 0 0 20px rgba(255,176,0,0.4);
+            animation: artPulse 3s ease-in-out infinite;
+            margin-bottom: 36px;
+        }
+        @keyframes artPulse {
+            0%, 100% { opacity: 0.85; text-shadow: 0 0 8px #ffb000, 0 0 20px rgba(255,176,0,0.3); }
+            50%       { opacity: 1;    text-shadow: 0 0 14px #ffb000, 0 0 40px rgba(255,176,0,0.6); }
+        }
+
+        #boot-label {
+            font-size: 11px;
+            color: #7a4400;
+            letter-spacing: 4px;
+            margin-bottom: 28px;
+            text-transform: uppercase;
+        }
+
+        #boot-enter-btn {
+            background: transparent;
+            border: 1px solid #ffb000;
+            color: #ffb000;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            padding: 10px 32px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+        }
+        #boot-enter-btn:hover {
+            background: #ffb000;
+            color: #000;
+            box-shadow: 0 0 18px rgba(255,176,0,0.5);
+        }
+
+        /* ===================== ОСНОВНОЙ ИНТЕРФЕЙС ===================== */
+        #main-ui {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        /* Шапка */
+        #gm-header {
+            background: #0a0600;
+            border-bottom: 2px solid #ffb000;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        #gm-header-title {
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            color: #ffb000;
+            text-shadow: 0 0 8px rgba(255,176,0,0.5);
+        }
+        #gm-header-status {
+            font-size: 11px;
+            color: #7a4400;
+        }
+        #gm-header-status span {
+            color: #ffb000;
+        }
+
+        /* Тело */
+        #gm-body {
+            flex-grow: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Левая панель */
+        #gm-sidebar {
+            width: 220px;
+            border-right: 2px solid #ffb000;
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+            background: rgba(20, 10, 0, 0.3);
+        }
+        .gm-sidebar-label {
+            font-size: 10px;
+            color: #7a4400;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .gm-stat-row {
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,176,0,0.1);
+        }
+        .gm-stat-val { color: #ffb000; }
+
+        .gm-sidebar-divider {
+            border: none;
+            border-top: 1px solid rgba(255,176,0,0.2);
+            margin: 8px 0;
+        }
+
+        .gm-action-btn {
+            background: transparent;
+            border: 1px solid #7a4400;
+            color: #7a4400;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 7px 10px;
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            letter-spacing: 1px;
+            transition: all 0.1s;
+        }
+        .gm-action-btn:hover {
+            border-color: #ffb000;
+            color: #ffb000;
+            background: rgba(255,176,0,0.05);
+        }
+        .gm-action-btn.danger {
+            border-color: #7a0000;
+            color: #7a0000;
+        }
+        .gm-action-btn.danger:hover {
+            border-color: #ff3333;
+            color: #ff3333;
+            background: rgba(255,51,51,0.05);
+        }
+
+        /* Центральная панель */
+        #gm-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+        }
+
+        #gm-content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,176,0,0.3);
+        }
+        #gm-content-title {
+            font-size: 13px;
+            letter-spacing: 2px;
+            color: #ffb000;
+        }
+        #gm-refresh-btn {
+            background: transparent;
+            border: 1px solid #ffb000;
+            color: #ffb000;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 4px 12px;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
+        #gm-refresh-btn:hover { background: #ffb000; color: #000; }
+
+        /* Таблица логов */
+        #logs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #logs-table th {
+            text-align: left;
+            font-size: 10px;
+            color: #7a4400;
+            letter-spacing: 2px;
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(255,176,0,0.3);
+            text-transform: uppercase;
+        }
+        #logs-table td {
+            padding: 10px 10px;
+            border-bottom: 1px solid rgba(255,176,0,0.08);
+            font-size: 12px;
+            vertical-align: middle;
+        }
+        #logs-table tr:hover td {
+            background: rgba(255,176,0,0.04);
+        }
+
+        .log-filename {
+            color: #7a4400;
+            font-size: 11px;
+        }
+        .log-title {
+            color: #ffb000;
+        }
+        .log-new-badge {
+            display: inline-block;
+            background: #ff3333;
+            color: #fff;
+            font-size: 9px;
+            padding: 1px 5px;
+            margin-left: 6px;
+            letter-spacing: 1px;
+        }
+
+        /* Переключатель */
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .toggle {
+            position: relative;
+            width: 42px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .toggle input { display: none; }
+        .toggle-track {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #1a0d00;
+            border: 1px solid #7a4400;
+            transition: border-color 0.2s;
+        }
+        .toggle input:checked + .toggle-track {
+            border-color: #ffb000;
+            background: rgba(255,176,0,0.1);
+        }
+        .toggle-thumb {
+            position: absolute;
+            top: 3px; left: 3px;
+            width: 12px; height: 12px;
+            background: #7a4400;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .toggle input:checked ~ .toggle-thumb {
+            transform: translateX(22px);
+            background: #ffb000;
+            box-shadow: 0 0 6px rgba(255,176,0,0.6);
+        }
+        .toggle-label {
+            font-size: 11px;
+            color: #7a4400;
+            letter-spacing: 1px;
+        }
+        .toggle input:checked ~ ~ .toggle-label,
+        .toggle-label.on { color: #ffb000; }
+
+        /* Статус строка лога */
+        .log-status-text {
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+        .log-status-text.visible { color: #39ff88; }
+        .log-status-text.hidden  { color: #ff3333; }
+
+        /* Пустой / загрузка */
+        .gm-info-row {
+            color: #7a4400;
+            font-size: 12px;
+            padding: 20px 10px;
+            letter-spacing: 1px;
+        }
+
+        /* Нижняя строка статуса */
+        #gm-footer {
+            border-top: 1px solid rgba(255,176,0,0.2);
+            padding: 5px 20px;
+            display: flex;
+            gap: 24px;
+            flex-shrink: 0;
+            background: rgba(10,6,0,0.8);
+        }
+        .footer-item {
+            font-size: 10px;
+            color: #7a4400;
+            letter-spacing: 1px;
+        }
+        .footer-item span { color: #ffb000; }
+    </style>
+</head>
+<body>
+
+    <!-- ЭКРАН ЗАГРУЗКИ -->
+    <div id="boot-screen">
+        <pre id="boot-art">⣿⣿⣿⣿⣿⢿⠿⠿⠿⠛⠛⠛⠛⠻⠿⠿⢿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⠟⠋⣁⠄⠄⣀⣤⣤⣤⣀⣉⣁⡀⠒⠄⠉⠛⣿⣿⣿⣿⣿
+⡏⢡⣴⠟⠁⠐⠉⠄⣤⣄⠉⣿⠟⢃⡄⠄⠄⢠⡀⠈⠻⣿⣿⣿
+⠄⢸⣤⣤⣀⠑⠒⠚⠛⣁⣤⣿⣦⣄⡉⠛⠛⠛⠉⣠⣄⠙⣿⣿
+⠄⣾⣿⣿⡟⢻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠚⣿
+⠄⢻⣿⣿⣷⣄⣉⠙⠛⠛⠛⠛⠛⠛⠋⣉⣉⣀⣤⠤⠄⣸⡀⢻
+⣇⡈⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡏⢠⣶⣿⣇⠘
+⣿⣧⡈⢻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠇⢸⣿⣿⡿⠄
+⣿⣿⣷⡀⠹⣿⣿⣿⣿⣿⣿⡋⠙⢻⣿⣿⣿⠟⢀⣾⣿⣿⠃⣸
+⣿⣿⣿⣿⣦⠈⠻⣿⣿⣿⣿⣿⣷⣤⣀⣀⣠⣤⣿⣿⠟⢁⣼⣿
+⣿⣿⣿⣿⣿⣿⣶⣤⣈⠙⠛⠛⠿⠿⠿⠿⠿⠛⠛⣡⣴⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣷⣶⣶⣶⣶⣶⣾⣿⣿⣿⣿⣿⣿</pre>
+        <div id="boot-label">// FF OS — GM TERMINAL //</div>
+        <button id="boot-enter-btn" onclick="enterGMPanel()">[ ВОЙТИ В СИСТЕМУ ]</button>
+    </div>
+
+    <!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
+    <div id="main-ui">
+        <div id="gm-header">
+            <div id="gm-header-title">&gt;&gt; GM CONTROL PANEL //</div>
+            <div id="gm-header-status">FIREBASE: <span id="fb-status">СОЕДИНЕНИЕ...</span></div>
+        </div>
+
+        <div id="gm-body">
+            <!-- Сайдбар -->
+            <div id="gm-sidebar">
+                <div class="gm-sidebar-label">// СТАТИСТИКА</div>
+                <div class="gm-stat-row">
+                    <span>Всего файлов</span>
+                    <span class="gm-stat-val" id="stat-total">—</span>
+                </div>
+                <div class="gm-stat-row">
+                    <span>Видимых</span>
+                    <span class="gm-stat-val" id="stat-visible">—</span>
+                </div>
+                <div class="gm-stat-row">
+                    <span>Скрытых</span>
+                    <span class="gm-stat-val" id="stat-hidden">—</span>
+                </div>
+                <div class="gm-stat-row">
+                    <span>Новых</span>
+                    <span class="gm-stat-val" id="stat-new">—</span>
+                </div>
+
+                <hr class="gm-sidebar-divider">
+                <div class="gm-sidebar-label">// ДЕЙСТВИЯ</div>
+
+                <button class="gm-action-btn" onclick="showAllLogs()">[ ПОКАЗАТЬ ВСЕ ]</button>
+                <button class="gm-action-btn" onclick="hideAllLogs()">[ СКРЫТЬ ВСЕ ]</button>
+                <hr class="gm-sidebar-divider">
+                <button class="gm-action-btn" onclick="refreshLogs()">[ ОБНОВИТЬ ]</button>
+            </div>
+
+            <!-- Центр: таблица -->
+            <div id="gm-content">
+                <div id="gm-content-header">
+                    <div id="gm-content-title">// УПРАВЛЕНИЕ ЛОГАМИ</div>
+                    <button id="gm-refresh-btn" onclick="refreshLogs()">↺ ОБНОВИТЬ</button>
+                </div>
+
+                <table id="logs-table">
+                    <thead>
+                        <tr>
+                            <th style="width:90px">ФАЙЛ</th>
+                            <th>НАЗВАНИЕ</th>
+                            <th style="width:80px">СТАТУС</th>
+                            <th style="width:100px">ПОКАЗЫВАТЬ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody">
+                        <tr><td colspan="4" class="gm-info-row">Загрузка данных...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="gm-footer">
+            <div class="footer-item">REPO: <span>Drake434/FF</span></div>
+            <div class="footer-item">BRANCH: <span>main</span></div>
+            <div class="footer-item">DB: <span>farid-9ae00</span></div>
+            <div class="footer-item" id="footer-time">TIME: <span id="footer-clock">--:--:--</span></div>
+        </div>
+    </div>
+
+    <script>
+        const GITHUB_CONFIG = {
+            user: "Drake434",
+            repo: "FF",
+            branch: "main"
+        };
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBGh46wWig5a14tIG79aMC2fvy9KkBwlrM",
+            authDomain: "farid-9ae00.firebaseapp.com",
+            databaseURL: "https://farid-9ae00-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "farid-9ae00",
+            storageBucket: "farid-9ae00.firebasestorage.app",
+            messagingSenderId: "660872956739",
+            appId: "1:660872956739:web:a082bc97ed2a2469b43df6",
+            measurementId: "G-D5GJZ9FQDJ"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const fbDb = firebase.database();
+
+        let allFiles = [];           // файлы с GitHub
+        let publishedState = {};     // текущее состояние из Firebase
+
+        // ── Часы ──────────────────────────────────────────────
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('footer-clock').textContent =
+                now.toLocaleTimeString('ru-RU', { hour12: false });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ── Вход ──────────────────────────────────────────────
+        function enterGMPanel() {
+            document.getElementById('boot-screen').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'flex';
+            initGMPanel();
+        }
+
+        // ── Инициализация ─────────────────────────────────────
+        function initGMPanel() {
+            // Подключение Firebase
+            fbDb.ref('.info/connected').on('value', function(snap) {
+                const el = document.getElementById('fb-status');
+                if (snap.val()) {
+                    el.textContent = 'OK';
+                    el.style.color = '#39ff88';
+                } else {
+                    el.textContent = 'OFFLINE';
+                    el.style.color = '#ff3333';
+                }
+            });
+
+            // Слушаем Firebase — мгновенно обновляем при изменении
+            fbDb.ref('published_logs').on('value', function(snapshot) {
+                publishedState = snapshot.val() || {};
+                renderTable();
+            });
+
+            // Загружаем файлы с GitHub
+            loadGithubFiles();
+        }
+
+        // ── Загрузка файлов GitHub ─────────────────────────────
+        function loadGithubFiles() {
+            const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/contents/?ref=${GITHUB_CONFIG.branch}`;
+
+            fetch(apiUrl)
+                .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                .then(items => {
+                    const numericFiles = items.filter(item => {
+                        if (item.type !== 'file') return false;
+                        const parts = item.name.split('.');
+                        return parts.length === 2 && parts[1] === 'txt' && /^\d+$/.test(parts[0]);
+                    });
+
+                    numericFiles.sort((a, b) => parseInt(a.name) - parseInt(b.name));
+
+                    // Загружаем содержимое для получения названий
+                    return Promise.all(numericFiles.map(file =>
+                        fetch(file.download_url)
+                            .then(r => r.text())
+                            .then(text => {
+                                const lines = text.split(/\r?\n/);
+                                let title = file.name;
+                                if (lines[0] && lines[0].trim().startsWith('name:')) {
+                                    title = lines[0].replace('name:', '').trim();
+                                }
+                                return { name: file.name, title };
+                            })
+                    ));
+                })
+                .then(files => {
+                    allFiles = files;
+
+                    // Новые файлы — автоматически ставим false в Firebase
+                    const updates = {};
+                    files.forEach(f => {
+                        if (publishedState[f.name] === undefined) {
+                            updates[f.name] = false;
+                        }
+                    });
+                    if (Object.keys(updates).length > 0) {
+                        fbDb.ref('published_logs').update(updates);
+                    }
+
+                    renderTable();
+                })
+                .catch(() => {
+                    document.getElementById('logs-tbody').innerHTML =
+                        '<tr><td colspan="4" class="gm-info-row" style="color:#ff3333;">Ошибка загрузки GitHub API</td></tr>';
+                });
+        }
+
+        // ── Рендер таблицы ────────────────────────────────────
+        function renderTable() {
+            const tbody = document.getElementById('logs-tbody');
+
+            if (allFiles.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="gm-info-row">Загрузка файлов...</td></tr>';
+                return;
+            }
+
+            let visibleCount = 0;
+            let hiddenCount = 0;
+            let newCount = 0;
+
+            tbody.innerHTML = '';
+
+            allFiles.forEach(file => {
+                const stateInFb = publishedState[file.name];
+                const isNew = stateInFb === undefined || stateInFb === false && !Object.prototype.hasOwnProperty.call(publishedState, file.name);
+                // Новый = не было раньше в Firebase вообще (до нашего автоматического добавления)
+                const isVisible = publishedState[file.name] === true;
+                const isNewFile = !Object.prototype.hasOwnProperty.call(publishedState, file.name);
+
+                if (isVisible) visibleCount++;
+                else hiddenCount++;
+                if (isNewFile) newCount++;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="log-filename">${file.name}</td>
+                    <td>
+                        <span class="log-title">${file.title}</span>
+                        ${isNewFile ? '<span class="log-new-badge">NEW</span>' : ''}
+                    </td>
+                    <td>
+                        <span class="log-status-text ${isVisible ? 'visible' : 'hidden'}">
+                            ${isVisible ? '[ ВИДНО ]' : '[ СКРЫТО ]'}
+                        </span>
+                    </td>
+                    <td>
+                        <label class="toggle">
+                            <input type="checkbox" ${isVisible ? 'checked' : ''}
+                                onchange="toggleLog('${file.name}', this.checked)">
+                            <div class="toggle-track"></div>
+                            <div class="toggle-thumb"></div>
+                        </label>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Обновляем статистику
+            document.getElementById('stat-total').textContent = allFiles.length;
+            document.getElementById('stat-visible').textContent = visibleCount;
+            document.getElementById('stat-hidden').textContent = hiddenCount;
+            document.getElementById('stat-new').textContent = newCount;
+        }
+
+        // ── Переключение лога ─────────────────────────────────
+        function toggleLog(fileName, value) {
+            fbDb.ref('published_logs/' + fileName).set(value);
+        }
+
+        // ── Показать / скрыть все ─────────────────────────────
+        function showAllLogs() {
+            const updates = {};
+            allFiles.forEach(f => { updates[f.name] = true; });
+            fbDb.ref('published_logs').update(updates);
+        }
+
+        function hideAllLogs() {
+            const updates = {};
+            allFiles.forEach(f => { updates[f.name] = false; });
+            fbDb.ref('published_logs').update(updates);
+        }
+
+        // ── Обновить список ───────────────────────────────────
+        function refreshLogs() {
+            allFiles = [];
+            document.getElementById('logs-tbody').innerHTML =
+                '<tr><td colspan="4" class="gm-info-row">Обновление...</td></tr>';
+            loadGithubFiles();
+        }
+    </script>
+</body>
+</html>
