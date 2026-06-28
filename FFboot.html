@@ -392,6 +392,22 @@
         .map-mode-btn.active-create { background-color: #00d2ff; color: #000; border-color: #00d2ff; }
         .map-mode-btn.active-edit   { background-color: #ffb000; color: #000; border-color: #ffb000; }
         .map-mode-btn.active-faction{ background-color: #aa44ff; color: #000; border-color: #aa44ff; }
+        .map-mode-btn.active-plan   { background-color: #39ff88; color: #000; border-color: #39ff88; }
+        #plan-toolbar {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.88);
+            border: 1px solid #00d2ff;
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 40;
+            width: 248px;
+            font-family: 'Courier New', monospace;
+        }
+        .plan-tool-btn.active-tool { background-color: #39ff88; color: #000; border-color: #39ff88; }
         .map-divider {
             border: none;
             border-top: 1px solid #00667a;
@@ -529,6 +545,11 @@
             height: 20px;
             border: 1px solid #00667a;
         }
+        #plan-color-preview {
+            width: 100%;
+            height: 20px;
+            border: 1px solid #00667a;
+        }
         .layer-toggle {
             display: flex;
             align-items: center;
@@ -620,6 +641,7 @@
                     <button class="map-mode-btn" id="btn-mode-create" style="display:none;" onclick="setMapMode('CREATE')">[ CREATE ]</button>
                     <button class="map-mode-btn" id="btn-mode-edit"   style="display:none;" onclick="setMapMode('EDIT')">[ EDIT ]</button>
                     <button class="map-mode-btn" id="btn-mode-faction" onclick="setMapMode('FACTION')">[ FACTION ]</button>
+                    <button class="map-mode-btn" id="btn-mode-plan" onclick="setMapMode('PLAN')">[ ПЛАН ]</button>
                     <hr class="map-divider">
                     <div class="map-sidebar-title">// СЛОИ</div>
                     <label class="layer-toggle"><input type="checkbox" id="toggle-regions" checked onchange="redrawMap()"> Районы</label>
@@ -634,6 +656,19 @@
                 <div id="map-container">
                     <img id="map-img" src="" alt="map">
                     <canvas id="map-canvas"></canvas>
+                    <div id="plan-toolbar">
+                        <div class="map-sidebar-title">// ИНСТРУМЕНТ</div>
+                        <button class="map-mode-btn plan-tool-btn" id="plan-tool-brush" onclick="setPlanTool('brush')">[ КИСТЬ ]</button>
+                        <button class="map-mode-btn plan-tool-btn" id="plan-tool-arrow" onclick="setPlanTool('arrow')">[ СТРЕЛКА ]</button>
+                        <button class="map-mode-btn plan-tool-btn" id="plan-tool-eraser" onclick="setPlanTool('eraser')">[ ЛАСТИК ]</button>
+                        <hr class="map-divider">
+                        <div class="map-sidebar-title">// ЦВЕТ</div>
+                        <div class="palette-grid" id="plan-palette-grid"></div>
+                        <input type="color" id="plan-custom-color" title="Свой цвет" onchange="selectPlanColor(this.value)">
+                        <div id="plan-color-preview"></div>
+                        <hr class="map-divider">
+                        <button class="map-mode-btn" style="border-color:#ff3333;color:#ff3333;" onclick="clearPlanBoard()">[ ОЧИСТИТЬ ВСЁ ]</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -739,6 +774,9 @@
             document.getElementById('boot-screen').style.display = 'none';
         }
 
+        let allLogFilesCache = [];
+        let publishedLogsCache = {};
+
         function fetchAllDigitalLogs() {
             const sidebar = document.getElementById('news-sidebar');
             sidebar.innerHTML = `<span style="font-size:11px;color:#00667a;">Поиск файлов...</span>`;
@@ -764,38 +802,69 @@
                 }
 
                 numericFiles.sort((a, b) => parseInt(a.name) - parseInt(b.name));
-                sidebar.innerHTML = "";
-                
-                numericFiles.forEach(file => {
+
+                Promise.all(numericFiles.map(file =>
                     fetch(file.download_url)
-                    .then(res => res.text())
-                    .then(text => {
-                        const lines = text.split(/\r?\n/);
-                        let firstLine = lines[0] ? lines[0].trim() : "";
-                        let btnTitle = file.name;
-                        let finalContent = text;
-
-                        if (firstLine.startsWith("name:")) {
-                            btnTitle = firstLine.replace("name:", "").trim();
-                            lines.shift();
-                            finalContent = lines.join("\n");
-                        }
-
-                        loadedFilesData[file.name] = {
-                            title: btnTitle,
-                            content: finalContent
-                        };
-
-                        const btn = document.createElement('button');
-                        btn.className = 'sidebar-btn';
-                        btn.textContent = btnTitle;
-                        btn.onclick = () => renderLogContent(file.name, btn);
-                        sidebar.appendChild(btn);
+                        .then(res => res.text())
+                        .then(text => ({ file, text }))
+                )).then(results => {
+                    allLogFilesCache = results;
+                    fbDb.ref('published_logs').on('value', function(snapshot) {
+                        publishedLogsCache = snapshot.val() || {};
+                        reconcileAndRenderNews();
                     });
                 });
             })
             .catch(err => {
                 sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Ошибка связи API</span>`;
+            });
+        }
+
+        function reconcileAndRenderNews() {
+            const sidebar = document.getElementById('news-sidebar');
+            const updates = {};
+
+            const visible = allLogFilesCache.filter(({ file }) => {
+                if (publishedLogsCache[file.name] === undefined) {
+                    updates[file.name] = false;
+                    return false;
+                }
+                return publishedLogsCache[file.name] === true;
+            });
+
+            if (Object.keys(updates).length > 0) {
+                fbDb.ref('published_logs').update(updates);
+                Object.assign(publishedLogsCache, updates);
+            }
+
+            if (visible.length === 0) {
+                sidebar.innerHTML = `<span style="font-size:11px;color:#ff3333;">Логи не найдены</span>`;
+                return;
+            }
+
+            sidebar.innerHTML = "";
+            visible.forEach(({ file, text }) => {
+                const lines = text.split(/\r?\n/);
+                let firstLine = lines[0] ? lines[0].trim() : "";
+                let btnTitle = file.name;
+                let finalContent = text;
+
+                if (firstLine.startsWith("name:")) {
+                    btnTitle = firstLine.replace("name:", "").trim();
+                    lines.shift();
+                    finalContent = lines.join("\n");
+                }
+
+                loadedFilesData[file.name] = {
+                    title: btnTitle,
+                    content: finalContent
+                };
+
+                const btn = document.createElement('button');
+                btn.className = 'sidebar-btn';
+                btn.textContent = btnTitle;
+                btn.onclick = () => renderLogContent(file.name, btn);
+                sidebar.appendChild(btn);
             });
         }
 
@@ -965,6 +1034,19 @@
         ];
         let selectedPaletteColor = PALETTE_COLORS[0];
 
+        let planTool = 'brush';
+        let planColor = PALETTE_COLORS[0];
+        let planElements = {};
+        let planPendingNew = [];
+        let planPendingRemoved = new Set();
+        let planSaveTimer = null;
+        let planListenerActive = false;
+        let isDrawingPlanStroke = false;
+        let planCurrentStrokePoints = [];
+        let planArrowStart = null;
+        const PLAN_SAVE_DELAY = 5000;
+        const PLAN_ERASE_RADIUS = 14;
+
         function initMapModule() {
             const canvas = document.getElementById('map-canvas');
             const container = document.getElementById('map-container');
@@ -995,6 +1077,8 @@ const mapImg = document.getElementById('map-img');
 
             fetchMapData();
             buildPaletteGrid();
+            buildPlanPaletteGrid();
+            setPlanTool('brush');
             initFirebaseFactions();
             initMapKeyboardPan();
 
@@ -1118,17 +1202,47 @@ const mapImg = document.getElementById('map-img');
 
         function setMapMode(mode) {
             if (mapMode === mode) mode = null;
+
+            if (mapMode === 'PLAN' && mode !== 'PLAN') {
+                leavePlanMode();
+            }
+
             mapMode = mode;
             document.querySelectorAll('.map-mode-btn[id^="btn-mode"]').forEach(b => {
-                b.classList.remove('active-create','active-edit','active-faction');
+                b.classList.remove('active-create','active-edit','active-faction','active-plan');
             });
             if (mode === 'CREATE') document.getElementById('btn-mode-create').classList.add('active-create');
             if (mode === 'EDIT')   document.getElementById('btn-mode-edit').classList.add('active-edit');
             if (mode === 'FACTION') document.getElementById('btn-mode-faction').classList.add('active-faction');
+            if (mode === 'PLAN') {
+                document.getElementById('btn-mode-plan').classList.add('active-plan');
+                enterPlanMode();
+            }
             document.getElementById('btn-add-faction').style.display = (mode === 'FACTION') ? 'block' : 'none';
+            document.getElementById('plan-toolbar').style.display = (mode === 'PLAN') ? 'flex' : 'none';
             drawingPolygon = false;
             currentPolygonPoints = [];
             redrawMap();
+        }
+
+        function enterPlanMode() {
+            if (planListenerActive) return;
+            planListenerActive = true;
+            fbDb.ref('plan_board').on('value', function(snapshot) {
+                planElements = snapshot.val() || {};
+                redrawMap();
+            });
+        }
+
+        function leavePlanMode() {
+            if (planListenerActive) {
+                fbDb.ref('plan_board').off();
+                planListenerActive = false;
+            }
+            commitPlanChanges();
+            isDrawingPlanStroke = false;
+            planCurrentStrokePoints = [];
+            planArrowStart = null;
         }
 
         function canvasToMap(cx, cy) {
@@ -1204,6 +1318,22 @@ const mapImg = document.getElementById('map-img');
                 return;
             }
 
+            if (mapMode === 'PLAN') {
+                hideTooltip();
+                if (!isDrawingPlanStroke) return;
+                const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
+                if (planTool === 'brush') {
+                    planCurrentStrokePoints.push(mp);
+                    redrawMap();
+                } else if (planTool === 'eraser') {
+                    erasePlanElementsNear(mp.x, mp.y);
+                    redrawMap();
+                } else if (planTool === 'arrow') {
+                    redrawMap(mp);
+                }
+                return;
+            }
+
             const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
 
             const idx = getRegionAtPoint(mp.x, mp.y);
@@ -1233,6 +1363,21 @@ const mapImg = document.getElementById('map-img');
         function onMapMouseDown(e) {
             if (e.button !== 0) return;
 
+            if (mapMode === 'PLAN') {
+                const rect = e.target.getBoundingClientRect();
+                const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
+                isDrawingPlanStroke = true;
+                if (planTool === 'brush') {
+                    planCurrentStrokePoints = [mp];
+                } else if (planTool === 'arrow') {
+                    planArrowStart = mp;
+                } else if (planTool === 'eraser') {
+                    erasePlanElementsNear(mp.x, mp.y);
+                }
+                redrawMap();
+                return;
+            }
+
             if (mapMode === 'EDIT') {
                 const rect = e.target.getBoundingClientRect();
                 const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
@@ -1259,10 +1404,35 @@ const mapImg = document.getElementById('map-img');
             panStartOffsetY = mapOffsetY;
         }
 
-        function onMapMouseUp() {
+        function onMapMouseUp(e) {
             editDragPointIdx = null;
             editDragRegionIdx = null;
             isPanning = false;
+
+            if (mapMode === 'PLAN' && isDrawingPlanStroke) {
+                isDrawingPlanStroke = false;
+                if (planTool === 'brush' && planCurrentStrokePoints.length > 1) {
+                    const id = generatePlanId();
+                    planPendingNew.push({ id, data: { type: 'brush', color: planColor, points: planCurrentStrokePoints } });
+                    schedulePlanSave();
+                } else if (planTool === 'arrow' && planArrowStart && e) {
+                    const canvas = document.getElementById('map-canvas');
+                    const rect = canvas.getBoundingClientRect();
+                    const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
+                    const dx = mp.x - planArrowStart.x, dy = mp.y - planArrowStart.y;
+                    if (Math.sqrt(dx*dx + dy*dy) > 5 / mapScale) {
+                        const id = generatePlanId();
+                        planPendingNew.push({ id, data: { type: 'arrow', color: planColor, from: planArrowStart, to: mp } });
+                        schedulePlanSave();
+                    }
+                } else if (planTool === 'eraser') {
+                    schedulePlanSave();
+                }
+                planCurrentStrokePoints = [];
+                planArrowStart = null;
+                redrawMap();
+                return;
+            }
         }
 
         function onMapWheel(e) {
@@ -1309,10 +1479,204 @@ const mapImg = document.getElementById('map-img');
             return {r,g,b};
         }
 
+        function generatePlanId() {
+            return 'el_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        }
+
+        function setPlanTool(tool) {
+            planTool = tool;
+            document.querySelectorAll('.plan-tool-btn').forEach(b => b.classList.remove('active-tool'));
+            const btn = document.getElementById('plan-tool-' + tool);
+            if (btn) btn.classList.add('active-tool');
+        }
+
+        function buildPlanPaletteGrid() {
+            const grid = document.getElementById('plan-palette-grid');
+            grid.innerHTML = '';
+            PALETTE_COLORS.forEach(color => {
+                const cell = document.createElement('div');
+                cell.className = 'palette-cell';
+                cell.style.background = color;
+                cell.onclick = () => selectPlanColor(color);
+                grid.appendChild(cell);
+            });
+            selectPlanColor(planColor);
+        }
+
+        function selectPlanColor(color) {
+            planColor = color;
+            document.getElementById('plan-color-preview').style.background = color;
+            document.querySelectorAll('#plan-palette-grid .palette-cell').forEach(c => {
+                c.classList.toggle('selected', c.style.background === color || c.style.backgroundColor === color);
+            });
+        }
+
+        function getVisiblePlanElements() {
+            const result = {};
+            Object.keys(planElements).forEach(id => {
+                if (!planPendingRemoved.has(id)) result[id] = planElements[id];
+            });
+            planPendingNew.forEach(entry => {
+                if (!planPendingRemoved.has(entry.id)) result[entry.id] = entry.data;
+            });
+            return result;
+        }
+
+        function distanceToSegment(px, py, a, b) {
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const lenSq = dx*dx + dy*dy;
+            if (lenSq === 0) {
+                const ddx = px - a.x, ddy = py - a.y;
+                return Math.sqrt(ddx*ddx + ddy*ddy);
+            }
+            let t = ((px - a.x) * dx + (py - a.y) * dy) / lenSq;
+            t = Math.max(0, Math.min(1, t));
+            const cx = a.x + t * dx, cy = a.y + t * dy;
+            const ddx = px - cx, ddy = py - cy;
+            return Math.sqrt(ddx*ddx + ddy*ddy);
+        }
+
+        function splitBrushPoints(points, mx, my, radius) {
+            const runs = [];
+            let current = [];
+            let changed = false;
+            points.forEach(p => {
+                const dx = p.x - mx, dy = p.y - my;
+                const inside = Math.sqrt(dx*dx + dy*dy) < radius;
+                if (inside) {
+                    changed = true;
+                    if (current.length > 1) runs.push(current);
+                    current = [];
+                } else {
+                    current.push(p);
+                }
+            });
+            if (current.length > 1) runs.push(current);
+            return { changed, runs };
+        }
+
+        function erasePlanElementsNear(mx, my) {
+            const radius = PLAN_ERASE_RADIUS / mapScale;
+            const visible = getVisiblePlanElements();
+            Object.keys(visible).forEach(id => {
+                const el = visible[id];
+                if (el.type === 'arrow') {
+                    if (distanceToSegment(mx, my, el.from, el.to) < radius) {
+                        planPendingRemoved.add(id);
+                    }
+                } else if (el.type === 'brush') {
+                    const { changed, runs } = splitBrushPoints(el.points, mx, my, radius);
+                    if (changed) {
+                        planPendingRemoved.add(id);
+                        runs.forEach(run => {
+                            planPendingNew.push({ id: generatePlanId(), data: { type: 'brush', color: el.color, points: run } });
+                        });
+                    }
+                }
+            });
+        }
+
+        function schedulePlanSave() {
+            if (planSaveTimer) clearTimeout(planSaveTimer);
+            planSaveTimer = setTimeout(commitPlanChanges, PLAN_SAVE_DELAY);
+        }
+
+        function commitPlanChanges() {
+            if (planSaveTimer) { clearTimeout(planSaveTimer); planSaveTimer = null; }
+            const updates = {};
+            let hasUpdates = false;
+
+            planPendingNew.forEach(entry => {
+                if (!planPendingRemoved.has(entry.id)) {
+                    updates[entry.id] = entry.data;
+                    hasUpdates = true;
+                }
+            });
+            planPendingNew = [];
+
+            planPendingRemoved.forEach(id => {
+                if (planElements[id] !== undefined) {
+                    updates[id] = null;
+                    hasUpdates = true;
+                }
+            });
+            planPendingRemoved.clear();
+
+            if (hasUpdates) {
+                fbDb.ref('plan_board').update(updates);
+            }
+        }
+
+        function clearPlanBoard() {
+            if (!confirm('Очистить всю доску планов для всех? Это нельзя отменить.')) return;
+            if (planSaveTimer) { clearTimeout(planSaveTimer); planSaveTimer = null; }
+            planPendingNew = [];
+            planPendingRemoved.clear();
+            planElements = {};
+            fbDb.ref('plan_board').remove();
+            redrawMap();
+        }
+
+        function drawPlanElement(ctx, el) {
+            if (el.type === 'brush') {
+                if (!el.points || el.points.length < 2) return;
+                ctx.beginPath();
+                const first = mapToCanvas(el.points[0].x, el.points[0].y);
+                ctx.moveTo(first.x, first.y);
+                for (let i = 1; i < el.points.length; i++) {
+                    const cp = mapToCanvas(el.points[i].x, el.points[i].y);
+                    ctx.lineTo(cp.x, cp.y);
+                }
+                ctx.strokeStyle = el.color;
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+            } else if (el.type === 'arrow') {
+                const from = mapToCanvas(el.from.x, el.from.y);
+                const to = mapToCanvas(el.to.x, el.to.y);
+                ctx.beginPath();
+                ctx.moveTo(from.x, from.y);
+                ctx.lineTo(to.x, to.y);
+                ctx.strokeStyle = el.color;
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                const angle = Math.atan2(to.y - from.y, to.x - from.x);
+                const headLen = 14;
+                ctx.beginPath();
+                ctx.moveTo(to.x, to.y);
+                ctx.lineTo(to.x - headLen * Math.cos(angle - Math.PI / 6), to.y - headLen * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(to.x - headLen * Math.cos(angle + Math.PI / 6), to.y - headLen * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fillStyle = el.color;
+                ctx.fill();
+            }
+        }
+
+        function drawPlanBoard(ctx, cursorPos) {
+            const elements = getVisiblePlanElements();
+            Object.values(elements).forEach(el => drawPlanElement(ctx, el));
+
+            if (isDrawingPlanStroke) {
+                if (planTool === 'brush' && planCurrentStrokePoints.length > 1) {
+                    drawPlanElement(ctx, { type: 'brush', color: planColor, points: planCurrentStrokePoints });
+                } else if (planTool === 'arrow' && planArrowStart && cursorPos) {
+                    drawPlanElement(ctx, { type: 'arrow', color: planColor, from: planArrowStart, to: cursorPos });
+                }
+            }
+        }
+
         function redrawMap(cursorPos) {
             const canvas = document.getElementById('map-canvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (mapMode === 'PLAN') {
+                drawPlanBoard(ctx, cursorPos);
+                return;
+            }
 
             const showRegions = document.getElementById('toggle-regions').checked;
             const showFactions = document.getElementById('toggle-factions').checked;
