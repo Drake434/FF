@@ -558,6 +558,67 @@
             cursor: pointer;
         }
         .layer-toggle input { cursor: pointer; accent-color: #00d2ff; }
+
+        /* ── MARKER / REGION CARDS ── */
+        .marker-card, .region-card {
+            position:absolute; pointer-events:all;
+            font-family:'Courier New',monospace; z-index:500;
+            transform:translateX(-50%);
+        }
+        .marker-info-wrap {
+            position:absolute; bottom:calc(100% + 8px); left:50%;
+            transform:translateX(-50%);
+            min-width:200px; max-width:280px;
+        }
+        .marker-info {
+            background:rgba(0,10,20,0.95); border:2px solid var(--mc,#00d2ff);
+            color:#00d2ff; padding:10px 12px; overflow:hidden; display:none;
+            box-shadow:0 0 16px rgba(0,0,0,0.8);
+        }
+        .marker-info::after {
+            content:''; position:absolute; bottom:-8px; left:50%; transform:translateX(-50%);
+            border-left:7px solid transparent; border-right:7px solid transparent;
+            border-top:8px solid var(--mc,#00d2ff);
+        }
+        .marker-info.open { display:block; animation:markerOpen 0.28s cubic-bezier(.22,1,.36,1) forwards; }
+        @keyframes markerOpen {
+            0%  { clip-path:inset(50% 50% 50% 50%); opacity:0; }
+            50% { clip-path:inset(0% 50% 0% 50%); opacity:1; }
+            100%{ clip-path:inset(0% 0% 0% 0%); }
+        }
+        .marker-info.expanded {
+            overflow-y:auto; z-index:600;
+        }
+        .marker-info.expanded .marker-info-short { display:none; }
+        .marker-info.expanded .marker-info-full  { display:block; }
+        /* expanded overlay — positioned by JS */
+        .marker-expanded-overlay {
+            position:absolute;
+            top:40px; left:40px; right:40px; bottom:40px;
+            background:rgba(0,10,20,0.97);
+            border:2px solid var(--mc,#00d2ff);
+            color:#00d2ff; padding:12px; overflow-y:auto;
+            z-index:600; box-shadow:0 0 24px rgba(0,0,0,0.9);
+            font-family:'Courier New',monospace; font-size:11px;
+        }
+        .marker-expanded-overlay .marker-info-title { font-size:13px; font-weight:bold; margin-bottom:8px; color:var(--mc,#00d2ff); }
+        .marker-expanded-overlay img { max-width:100%; height:auto; margin:6px 0; display:block; border:1px solid #00667a; cursor:pointer; }
+        .marker-expanded-overlay img:hover { opacity:0.85; outline:2px solid #00d2ff; }
+        .marker-expanded-overlay .marker-info-footer { display:flex; justify-content:space-between; margin-top:8px; padding-top:6px; border-top:1px solid rgba(0,210,255,0.15); }
+        .marker-expanded-overlay .marker-info-footer span { font-size:10px; color:#00667a; cursor:pointer; }
+        .marker-expanded-overlay .marker-info-footer span:hover { color:#00d2ff; }
+        .marker-info-title { font-size:12px; font-weight:bold; margin-bottom:6px; color:var(--mc,#00d2ff); }
+        .marker-info-short { font-size:11px; white-space:pre-wrap; line-height:1.4; max-height:80px; overflow:hidden; }
+        .marker-info-full  { font-size:11px; white-space:pre-wrap; line-height:1.4; display:none; }
+        .marker-info img { max-width:100%; height:auto; margin:6px 0; display:block; border:1px solid #00667a; cursor:pointer; }
+        .marker-info img:hover { opacity:0.85; outline:2px solid #00d2ff; }
+        .marker-info-footer {
+            display:flex; align-items:center; justify-content:space-between;
+            margin-top:8px; padding-top:6px; border-top:1px solid rgba(0,210,255,0.15);
+        }
+        .marker-info-footer span { font-size:10px; color:#00667a; cursor:pointer; letter-spacing:1px; }
+        .marker-info-footer span:hover { color:#00d2ff; }
+        .marker-expand-btn { font-size:13px !important; color:var(--mc,#00d2ff) !important; }
     </style>
 </head>
 <body>
@@ -629,7 +690,7 @@
 
     <div id="win-map" class="window" style="width: 800px; height: 550px; top: 60px; left: 80px; display: none;">
         <div class="window-header">
-            <div class="window-title" oncontextmenu="openMapHeaderMenu(event)">Карта :: AZAMAR</div>
+            <div class="window-title">Карта :: AZAMAR</div>
             <div class="window-controls">
                 <button class="win-btn" onclick="closeWindow('win-map')">[X]</button>
             </div>
@@ -638,20 +699,16 @@
             <div id="map-layout">
                 <div id="map-sidebar">
                     <div class="map-sidebar-title">// РЕЖИМ</div>
-                    <button class="map-mode-btn" id="btn-mode-create" style="display:none;" onclick="setMapMode('CREATE')">[ CREATE ]</button>
-                    <button class="map-mode-btn" id="btn-mode-edit"   style="display:none;" onclick="setMapMode('EDIT')">[ EDIT ]</button>
-                    <button class="map-mode-btn" id="btn-mode-faction" onclick="setMapMode('FACTION')">[ FACTION ]</button>
-                    <button class="map-mode-btn" id="btn-mode-plan" onclick="setMapMode('PLAN')">[ ПЛАН ]</button>
+   <button class="map-mode-btn" id="btn-mode-plan" onclick="setMapMode('PLAN')">[ ПЛАН ]</button>
                     <hr class="map-divider">
                     <div class="map-sidebar-title">// СЛОИ</div>
                     <label class="layer-toggle"><input type="checkbox" id="toggle-regions" checked onchange="redrawMap()"> Районы</label>
                     <label class="layer-toggle"><input type="checkbox" id="toggle-factions" checked onchange="redrawMap()"> Фракции</label>
+                    <label class="layer-toggle"><input type="checkbox" id="toggle-markers" checked onchange="redrawMap()"> Метки</label>
                     <hr class="map-divider">
                     <div class="map-sidebar-title">// ФРАКЦИИ</div>
                     <div id="faction-list"></div>
-                    <button class="map-mode-btn" id="btn-add-faction" style="display:none;" onclick="openColorPalette()">+ Фракция</button>
-                    <hr class="map-divider">
-                    <button class="map-mode-btn" onclick="saveMapFile()">[ СОХРАНИТЬ ]</button>
+
                 </div>
                 <div id="map-container">
                     <img id="map-img" src="" alt="map">
@@ -673,35 +730,14 @@
             </div>
         </div>
         <div class="resize-handle"></div>
-        <div id="map-secret-toggle" onclick="toggleHiddenMapModes(event)"></div>
     </div>
 
-    <div id="map-header-menu">
-        <button class="terminal-btn" onclick="setMapMode('CREATE'); closeMapHeaderMenu();">CREATE</button>
-        <button class="terminal-btn" onclick="setMapMode('EDIT'); closeMapHeaderMenu();">EDIT</button>
-    </div>
 
     <div id="map-tooltip"></div>
 
-    <div id="map-region-popup">
-        <div style="color:#00667a;font-size:11px;">// РАЙОН</div>
-        <input type="text" id="region-name-input" placeholder="Название района">
-        <button class="terminal-btn" id="region-save-btn" onclick="saveRegionName()">СОХРАНИТЬ</button>
-        <button class="terminal-btn" id="region-delete-btn" style="border-color:#ff3333;color:#ff3333;" onclick="deleteRegion()">УДАЛИТЬ</button>
-        <button class="terminal-btn" style="border-color:#00667a;color:#00667a;" onclick="closeRegionPopup()">ЗАКРЫТЬ</button>
-    </div>
 
-    <div id="color-palette-popup">
-        <div style="color:#00667a;font-size:11px;">// НОВАЯ ФРАКЦИЯ</div>
-        <input type="text" id="faction-name-input" placeholder="Название фракции">
-        <div class="palette-grid" id="palette-grid"></div>
-        <input type="color" id="palette-custom-color" title="Свой цвет" onchange="selectPaletteColor(this.value)">
-        <div id="palette-preview"></div>
-        <div style="display:flex;gap:6px;">
-            <button class="terminal-btn" onclick="confirmNewFaction()">СОЗДАТЬ</button>
-            <button class="terminal-btn" style="border-color:#00667a;color:#00667a;" onclick="closePalette()">ОТМЕНА</button>
-        </div>
-    </div>
+
+
 
     <div id="win-centered" class="window" style="width: 350px; height: 200px; display: none; z-index: 20000;">
         <div class="window-header">
@@ -1014,11 +1050,6 @@
         let mapRegions = [];
         let mapFactions = [];
         let regionFactions = {};
-        let currentPolygonPoints = [];
-        let drawingPolygon = false;
-        let selectedRegionIdx = null;
-        let editDragPointIdx = null;
-        let editDragRegionIdx = null;
         let mapImageNaturalW = 0;
         let mapImageNaturalH = 0;
         let mapImageLoaded = false;
@@ -1027,7 +1058,6 @@
         let isPanning = false;
         let panStartX = 0, panStartY = 0;
         let panStartOffsetX = 0, panStartOffsetY = 0;
-        const MAGNET_RADIUS = 12;
         const PALETTE_COLORS = [
             '#e6194b','#f58231','#ffe119','#bfef45','#3cb44b',
             '#42d4f4','#4363d8','#911eb4','#f032e6','#a9a9a9',
@@ -1036,7 +1066,6 @@
             '#000075','#e6beff','#ff4500','#00ced1','#ff69b4',
             '#8b0000','#556b2f','#4682b4','#7b68ee','#20b2aa'
         ];
-        let selectedPaletteColor = PALETTE_COLORS[0];
 
         let planTool = 'brush';
         let planColor = PALETTE_COLORS[0];
@@ -1080,14 +1109,12 @@ const mapImg = document.getElementById('map-img');
             };
 
             fetchMapData();
-            buildPaletteGrid();
             buildPlanPaletteGrid();
             setPlanTool('brush');
             initFirebaseFactions();
             initMapKeyboardPan();
 
             canvas.addEventListener('click', onMapClick);
-            canvas.addEventListener('dblclick', onMapDblClick);
             canvas.addEventListener('mousemove', onMapMouseMove);
             canvas.addEventListener('mouseleave', hideTooltip);
             container.addEventListener('wheel', onMapWheel, { passive: false });
@@ -1206,26 +1233,16 @@ const mapImg = document.getElementById('map-img');
 
         function setMapMode(mode) {
             if (mapMode === mode) mode = null;
-
-            if (mapMode === 'PLAN' && mode !== 'PLAN') {
-                leavePlanMode();
-            }
-
+            if (mapMode === 'PLAN' && mode !== 'PLAN') leavePlanMode();
             mapMode = mode;
             document.querySelectorAll('.map-mode-btn[id^="btn-mode"]').forEach(b => {
-                b.classList.remove('active-create','active-edit','active-faction','active-plan');
+                b.classList.remove('active-faction','active-plan');
             });
-            if (mode === 'CREATE') document.getElementById('btn-mode-create').classList.add('active-create');
-            if (mode === 'EDIT')   document.getElementById('btn-mode-edit').classList.add('active-edit');
-            if (mode === 'FACTION') document.getElementById('btn-mode-faction').classList.add('active-faction');
             if (mode === 'PLAN') {
                 document.getElementById('btn-mode-plan').classList.add('active-plan');
                 enterPlanMode();
             }
-            document.getElementById('btn-add-faction').style.display = (mode === 'FACTION') ? 'block' : 'none';
             document.getElementById('plan-toolbar').style.display = (mode === 'PLAN') ? 'flex' : 'none';
-            drawingPolygon = false;
-            currentPolygonPoints = [];
             redrawMap();
         }
 
@@ -1257,160 +1274,89 @@ const mapImg = document.getElementById('map-img');
             return { x: mx * mapScale + mapOffsetX, y: my * mapScale + mapOffsetY };
         }
 
-        function getMagnetPoint(mx, my) {
-            let closest = null;
-            let closestDist = MAGNET_RADIUS / mapScale;
-            mapRegions.forEach(region => {
-                region.points.forEach(p => {
-                    const dx = p.x - mx, dy = p.y - my;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist < closestDist) { closestDist = dist; closest = { x: p.x, y: p.y }; }
-                });
-            });
-            return closest || { x: mx, y: my };
-        }
+
 
         function onMapClick(e) {
             if (e.detail > 1) return;
-            if (mapMode === 'CREATE') {
-                if (!drawingPolygon) return;
-                const rect = e.target.getBoundingClientRect();
-                const raw = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
-                const pt = getMagnetPoint(raw.x, raw.y);
-                currentPolygonPoints.push(pt);
-                redrawMap();
-            } else if (mapMode === 'FACTION' || mapMode === 'EDIT' || !mapMode) {
-                const rect = e.target.getBoundingClientRect();
-                const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
-                const idx = getRegionAtPoint(mp.x, mp.y);
-                if (idx !== null) openRegionPopup(idx, e.clientX, e.clientY);
-            }
-        }
-
-        function onMapDblClick(e) {
+            if (mapMode === 'PLAN') return;
             const rect = e.target.getBoundingClientRect();
-            const raw = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
-            const pt = getMagnetPoint(raw.x, raw.y);
-            if (mapMode === 'CREATE') {
-                if (!drawingPolygon) {
-                    drawingPolygon = true;
-                    currentPolygonPoints = [pt];
-                    redrawMap();
-                } else {
-                    if (currentPolygonPoints.length >= 3) {
-                        mapRegions.push({
-                            id: Date.now(),
-                            name: String(mapRegions.length + 1),
-                            points: [...currentPolygonPoints]
-                        });
-                    }
-                    drawingPolygon = false;
-                    currentPolygonPoints = [];
-                    redrawMap();
+            const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
+            const showM = document.getElementById('toggle-markers') && document.getElementById('toggle-markers').checked;
+            const showR = document.getElementById('toggle-regions') && document.getElementById('toggle-regions').checked;
+
+            // markers — click to open card (read-only)
+            if (showM) {
+                const clickedId = getMarkerAtPoint(mp.x, mp.y);
+                if (clickedId) {
+                    activeMarkerId = (activeMarkerId === clickedId) ? null : clickedId;
+                    closeRegionCard();
+                    redrawMap(); updateActiveMarkerCard(); return;
                 }
             }
+            // regions — click to show info card (read-only)
+            if (showR) {
+                const idx = getRegionAtPoint(mp.x, mp.y);
+                if (idx !== null) {
+                    activeMarkerId = null; updateActiveMarkerCard();
+                    openRegionCard(idx, mp.x, mp.y); return;
+                }
+            }
+            // click empty — close everything
+            activeMarkerId = null; updateActiveMarkerCard(); closeRegionCard();
         }
+
+
 
         function onMapMouseMove(e) {
             const rect = e.target.getBoundingClientRect();
-
             if (isPanning) {
                 hideTooltip();
-                const dx = e.clientX - panStartX;
-                const dy = e.clientY - panStartY;
-                setMapOffset(panStartOffsetX + dx, panStartOffsetY + dy);
+                setMapOffset(panStartOffsetX + (e.clientX - panStartX), panStartOffsetY + (e.clientY - panStartY));
                 return;
             }
-
             if (mapMode === 'PLAN') {
                 hideTooltip();
                 if (!isDrawingPlanStroke) return;
                 const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
-                if (planTool === 'brush') {
-                    planCurrentStrokePoints.push(mp);
-                    redrawMap();
-                } else if (planTool === 'eraser') {
-                    erasePlanElementsNear(mp.x, mp.y);
-                    redrawMap();
-                } else if (planTool === 'arrow') {
-                    redrawMap(mp);
-                }
+                if (planTool === 'brush') { planCurrentStrokePoints.push(mp); redrawMap(); }
+                else if (planTool === 'eraser') { erasePlanElementsNear(mp.x, mp.y); redrawMap(); }
+                else if (planTool === 'arrow') { redrawMap(mp); }
                 return;
             }
-
             const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
-
-            const idx = getRegionAtPoint(mp.x, mp.y);
+            const showR = document.getElementById('toggle-regions') && document.getElementById('toggle-regions').checked;
+            const idx = showR ? getRegionAtPoint(mp.x, mp.y) : null;
             if (idx !== null) {
                 const region = mapRegions[idx];
+                const displayName = regionNames[region.id] || region.name;
                 const faction = mapFactions.find(f => f.id === regionFactions[region.id]);
                 const tooltip = document.getElementById('map-tooltip');
                 tooltip.style.display = 'block';
                 tooltip.style.left = (e.clientX + 14) + 'px';
                 tooltip.style.top = (e.clientY - 10) + 'px';
-                tooltip.innerHTML = `<b>${region.name}</b><br>Фракция: ${faction ? faction.name : '—'}`;
+                tooltip.innerHTML = `<b>${displayName}</b><br>Фракция: ${faction ? faction.name : '—'}`;
             } else {
                 hideTooltip();
-            }
-
-            if (mapMode === 'EDIT' && editDragPointIdx !== null && editDragRegionIdx !== null) {
-                const snapped = getMagnetPoint(mp.x, mp.y);
-                mapRegions[editDragRegionIdx].points[editDragPointIdx] = snapped;
-                redrawMap();
-            }
-
-            if (mapMode === 'CREATE' && drawingPolygon) {
-                redrawMap(mp);
             }
         }
 
         function onMapMouseDown(e) {
             if (e.button !== 0) return;
-
             if (mapMode === 'PLAN') {
                 const rect = e.target.getBoundingClientRect();
                 const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
                 isDrawingPlanStroke = true;
-                if (planTool === 'brush') {
-                    planCurrentStrokePoints = [mp];
-                } else if (planTool === 'arrow') {
-                    planArrowStart = mp;
-                } else if (planTool === 'eraser') {
-                    erasePlanElementsNear(mp.x, mp.y);
-                }
-                redrawMap();
-                return;
+                if (planTool === 'brush') { planCurrentStrokePoints = [mp]; }
+                else if (planTool === 'arrow') { planArrowStart = mp; }
+                else if (planTool === 'eraser') { erasePlanElementsNear(mp.x, mp.y); }
+                redrawMap(); return;
             }
-
-            if (mapMode === 'EDIT') {
-                const rect = e.target.getBoundingClientRect();
-                const mp = canvasToMap(e.clientX - rect.left, e.clientY - rect.top);
-                const hitRadius = 8 / mapScale;
-                for (let ri = 0; ri < mapRegions.length; ri++) {
-                    for (let pi = 0; pi < mapRegions[ri].points.length; pi++) {
-                        const p = mapRegions[ri].points[pi];
-                        const dx = p.x - mp.x, dy = p.y - mp.y;
-                        if (Math.sqrt(dx*dx+dy*dy) < hitRadius) {
-                            editDragRegionIdx = ri;
-                            editDragPointIdx = pi;
-                            return;
-                        }
-                    }
-                }
-            }
-
-            if (mapMode === 'CREATE' && drawingPolygon) return;
-
             isPanning = true;
-            panStartX = e.clientX;
-            panStartY = e.clientY;
-            panStartOffsetX = mapOffsetX;
-            panStartOffsetY = mapOffsetY;
+            panStartX = e.clientX; panStartY = e.clientY;
+            panStartOffsetX = mapOffsetX; panStartOffsetY = mapOffsetY;
         }
 
         function onMapMouseUp(e) {
-            editDragPointIdx = null;
-            editDragRegionIdx = null;
             isPanning = false;
 
             if (mapMode === 'PLAN' && isDrawingPlanStroke) {
@@ -1685,9 +1631,7 @@ const mapImg = document.getElementById('map-img');
             const showRegions = document.getElementById('toggle-regions').checked;
             const showFactions = document.getElementById('toggle-factions').checked;
 
-            if (!showRegions) return;
-
-            mapRegions.forEach(region => {
+            if (showRegions) mapRegions.forEach(region => {
                 if (region.points.length < 2) return;
                 const faction = mapFactions.find(f => f.id === regionFactions[region.id]);
                 const color = faction ? faction.color : '#00d2ff';
@@ -1710,133 +1654,212 @@ const mapImg = document.getElementById('map-img');
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                if (mapMode === 'EDIT') {
-                    region.points.forEach(p => {
-                        const cp = mapToCanvas(p.x, p.y);
-                        ctx.beginPath();
-                        ctx.arc(cp.x, cp.y, 5, 0, Math.PI * 2);
-                        ctx.fillStyle = '#00d2ff';
-                        ctx.fill();
-                        ctx.strokeStyle = '#000';
-                        ctx.lineWidth = 1;
-                        ctx.stroke();
-                    });
-                }
+                // label
+                const displayName = regionNames[region.id] || region.name;
+                const cx = region.points.reduce((s,p) => s+p.x, 0) / region.points.length;
+                const cy = region.points.reduce((s,p) => s+p.y, 0) / region.points.length;
+                const lp = mapToCanvas(cx, cy);
+                ctx.fillStyle = 'rgba(0,210,255,0.85)';
+                ctx.font = Math.max(10, 12*mapScale) + 'px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(displayName, lp.x, lp.y);
             });
 
-            if (mapMode === 'CREATE' && drawingPolygon && currentPolygonPoints.length > 0) {
+            // markers (скрываются в PLAN через early return выше)
+            drawMarkersOnCanvas(ctx);
+        }
+
+
+
+
+
+// ── MARKERS on canvas ──
+        const PLAYER_SYSTEM_COLOR = '#00d2ff';
+        let markersData = {};
+        let activeMarkerId = null;
+        let activeRegionId = null;
+        let regionNames = {};
+        let regionDescriptions = {};
+
+        function drawMarkersOnCanvas(ctx) {
+            const showM = document.getElementById('toggle-markers') && document.getElementById('toggle-markers').checked;
+            if (!showM) return;
+            Object.keys(markersData).forEach(id => {
+                const m = markersData[id];
+                if (!m.visible) return; // игрок видит только visible:true
+                const cp = mapToCanvas(m.x, m.y);
+                const markerColor = m.color || '#00d2ff';
+                const isActive = activeMarkerId === id;
+                const pinColor = isActive ? markerColor : PLAYER_SYSTEM_COLOR;
+                ctx.save();
+                ctx.translate(cp.x, cp.y);
+                if (isActive) ctx.scale(1.4, 1.4);
+                const pw = 14, ph = 20;
                 ctx.beginPath();
-                const fp = mapToCanvas(currentPolygonPoints[0].x, currentPolygonPoints[0].y);
-                ctx.moveTo(fp.x, fp.y);
-                for (let i = 1; i < currentPolygonPoints.length; i++) {
-                    const cp = mapToCanvas(currentPolygonPoints[i].x, currentPolygonPoints[i].y);
-                    ctx.lineTo(cp.x, cp.y);
+                ctx.arc(0, -ph/2+pw/2, pw/2, Math.PI, 0);
+                ctx.quadraticCurveTo(pw/2, 0, 0, ph/2);
+                ctx.quadraticCurveTo(-pw/2, 0, -pw/2, -ph/2+pw/2);
+                ctx.closePath();
+                ctx.fillStyle = isActive ? markerColor : 'rgba(0,0,0,0.75)';
+                ctx.strokeStyle = pinColor;
+                ctx.lineWidth = isActive ? 2.5 : 1.5;
+                ctx.fill(); ctx.stroke();
+                if (isActive) { ctx.shadowColor = markerColor; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0; }
+                ctx.fillStyle = isActive ? '#000' : PLAYER_SYSTEM_COLOR;
+                ctx.font = (isActive ? 11 : 9) + 'px serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(isActive ? (m.symbol || '☠︎') : '▪︎', 0, -ph/2+pw/2);
+                ctx.restore();
+            });
+        }
+
+        function getMarkerAtPoint(mx, my) {
+            const showM = document.getElementById('toggle-markers') && document.getElementById('toggle-markers').checked;
+            if (!showM) return null;
+            const hitR = 16 / mapScale;
+            let found = null;
+            Object.keys(markersData).forEach(id => {
+                const m = markersData[id];
+                if (!m.visible) return;
+                if (Math.hypot(m.x - mx, m.y - my) < hitR) found = id;
+            });
+            return found;
+        }
+
+        function buildDescHtml(desc, imgWidth) {
+            let html = '';
+            (desc || '').split(/\r?\n/).forEach(line => {
+                const art = line.match(/^ART:(.+)$/i);
+                if (art) {
+                    let src = art[1].trim();
+                    if (!src.startsWith('http') && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(src))
+                        src = `https://raw.githubusercontent.com/${GITHUB_CONFIG.user}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${src}`;
+                    html += `<img src="${src}" style="width:${imgWidth||300}px;max-width:100%;display:block;margin:6px 0;cursor:pointer;" onclick="window.open('${src}','_blank')">`;
+                } else {
+                    html += `<span>${line}</span><br>`;
                 }
-                if (cursorPos) {
-                    const cur = mapToCanvas(cursorPos.x, cursorPos.y);
-                    ctx.lineTo(cur.x, cur.y);
-                }
-                ctx.strokeStyle = 'rgba(0,210,255,0.7)';
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([5,4]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                currentPolygonPoints.forEach((p, i) => {
-                    const cp = mapToCanvas(p.x, p.y);
-                    ctx.beginPath();
-                    ctx.arc(cp.x, cp.y, i === 0 ? 6 : 4, 0, Math.PI * 2);
-                    ctx.fillStyle = i === 0 ? '#ffb000' : '#00d2ff';
-                    ctx.fill();
-                });
-            }
+            });
+            return html;
         }
 
-        function openRegionPopup(idx, cx, cy) {
-            selectedRegionIdx = idx;
-            const popup = document.getElementById('map-region-popup');
-            popup.style.display = 'flex';
-            popup.style.left = cx + 'px';
-            popup.style.top = cy + 'px';
-            document.getElementById('region-name-input').value = mapRegions[idx].name;
-
-            const isFactionMode = mapMode === 'FACTION';
-            document.getElementById('region-name-input').style.display = isFactionMode ? 'none' : 'block';
-            document.getElementById('region-save-btn').style.display = isFactionMode ? 'none' : 'block';
-            document.getElementById('region-delete-btn').style.display = isFactionMode ? 'none' : 'block';
-
-            const existingFactionSel = document.getElementById('faction-selector');
-            if (existingFactionSel) existingFactionSel.remove();
-            if (isFactionMode && mapFactions.length > 0) {
-                const sel = document.createElement('select');
-                sel.id = 'faction-selector';
-                sel.style.cssText = 'background:#000;border:1px solid #00d2ff;color:#00d2ff;font-family:Courier New,monospace;padding:4px;width:100%;';
-                const noneOpt = document.createElement('option');
-                noneOpt.value = '';
-                noneOpt.textContent = '— Нет фракции —';
-                sel.appendChild(noneOpt);
-                mapFactions.forEach(f => {
-                    const opt = document.createElement('option');
-                    opt.value = f.id;
-                    opt.textContent = f.name;
-                    if (regionFactions[mapRegions[idx].id] === f.id) opt.selected = true;
-                    sel.appendChild(opt);
-                });
-                sel.onchange = function() {
-                    const region = mapRegions[selectedRegionIdx];
-                    const factionId = this.value || null;
-                    if (factionId) {
-                        fbDb.ref('region_factions/' + region.id).set(factionId);
-                    } else {
-                        fbDb.ref('region_factions/' + region.id).remove();
-                    }
-                };
-                popup.insertBefore(sel, popup.children[2]);
-            }
+        function updateActiveMarkerCard() {
+            document.querySelectorAll('.marker-card').forEach(el => el.remove());
+            const ov = document.getElementById('expanded-overlay');
+            if (ov) ov.remove();
+            if (!activeMarkerId || !markersData[activeMarkerId]) return;
+            const m = markersData[activeMarkerId];
+            if (!m.visible) return;
+            const cp = mapToCanvas(m.x, m.y);
+            const container = document.getElementById('map-container');
+            const mc = m.color || '#00d2ff';
+            const shortHtml = buildDescHtml(m.shortDesc || '', m.imageWidth);
+            const fullHtml = buildDescHtml(m.description || '', m.imageWidth);
+            const card = document.createElement('div');
+            card.className = 'marker-card';
+            card.id = 'active-marker-card';
+            card.style.cssText = `left:${cp.x}px;top:${cp.y}px;--mc:${mc};`;
+            card.innerHTML = `
+                <div class="marker-info-wrap">
+                    <div class="marker-info open" id="marker-info-box" style="--mc:${mc};">
+                        <div class="marker-info-title">${m.symbol||''} ${m.title||''}</div>
+                        <div class="marker-info-short">${shortHtml || fullHtml}</div>
+                        <div class="marker-info-full">${fullHtml}</div>
+                        <div class="marker-info-footer">
+                            <span onclick="activeMarkerId=null;updateActiveMarkerCard();redrawMap();">[✕]</span>
+                            <span class="marker-expand-btn" onclick="toggleMarkerExpand(this)">⛶</span>
+                        </div>
+                    </div>
+                </div>`;
+            container.appendChild(card);
         }
 
-        function saveRegionName() {
-            if (selectedRegionIdx === null) return;
-            mapRegions[selectedRegionIdx].name = document.getElementById('region-name-input').value || String(selectedRegionIdx + 1);
-            closeRegionPopup();
-            redrawMap();
+        function toggleMarkerExpand(btn) {
+            const existing = document.getElementById('expanded-overlay');
+            if (existing) { existing.remove(); btn.textContent='⛶'; return; }
+            if (!activeMarkerId || !markersData[activeMarkerId]) return;
+            const m = markersData[activeMarkerId];
+            const mc = m.color || '#00d2ff';
+            const fullHtml = buildDescHtml(m.description || '', m.imageWidth);
+            const container = document.getElementById('map-container');
+            const overlay = document.createElement('div');
+            overlay.className = 'marker-expanded-overlay';
+            overlay.id = 'expanded-overlay';
+            overlay.style.setProperty('--mc', mc);
+            overlay.innerHTML = `
+                <div class="marker-info-title">${m.symbol||''} ${m.title||''}</div>
+                <div>${fullHtml || '<span style="color:#00667a">Нет подробного описания</span>'}</div>
+                <div class="marker-info-footer">
+                    <span onclick="document.getElementById('expanded-overlay').remove();document.querySelector('.marker-expand-btn').__expandBtn&&(document.querySelector('.marker-expand-btn').textContent='⛶')">[✕ СВЕРНУТЬ]</span>
+                </div>`;
+            container.appendChild(overlay);
+            btn.textContent = '⊡';
         }
 
-        function deleteRegion() {
-            if (selectedRegionIdx === null) return;
-            const region = mapRegions[selectedRegionIdx];
-            fbDb.ref('region_factions/' + region.id).remove();
-            mapRegions.splice(selectedRegionIdx, 1);
-            closeRegionPopup();
-            redrawMap();
+        function openRegionCard(idx, mx, my) {
+            closeRegionCard();
+            const region = mapRegions[idx];
+            const rd = regionDescriptions[region.id] || {};
+            if (!rd.visible && !rd.description && !rd.shortDesc) return; // нечего показывать
+            const cp = mapToCanvas(mx, my);
+            const container = document.getElementById('map-container');
+            const fbName = regionNames[region.id] || region.name;
+            const faction = mapFactions.find(f => f.id === regionFactions[region.id]);
+            const shortText = rd.shortDesc || '';
+            const shortHtml = shortText
+                ? shortText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                : (faction ? `<span style="color:${faction.color}">▪ ${faction.name}</span>` : '');
+            const fullHtml = buildDescHtml(rd.description || '', rd.imageWidth || 300);
+            if (!shortHtml && !fullHtml) return;
+            const card = document.createElement('div');
+            card.className = 'region-card';
+            card.id = 'active-region-card';
+            card.dataset.regionId = region.id;
+            card.style.cssText = `left:${cp.x}px;top:${cp.y}px;`;
+            card.innerHTML = `
+                <div class="marker-info-wrap">
+                    <div class="marker-info open" id="region-info-box">
+                        <div class="marker-info-title" style="color:#00d2ff;">${fbName}</div>
+                        <div class="marker-info-short">${shortHtml || '<span style="color:#00667a">Нет описания</span>'}</div>
+                        <div class="marker-info-full">${fullHtml || '<span style="color:#00667a">Нет подробного описания</span>'}</div>
+                        <div class="marker-info-footer">
+                            <span onclick="closeRegionCard()">[✕]</span>
+                            <span class="marker-expand-btn" onclick="toggleRegionExpand(this)">⛶</span>
+                        </div>
+                    </div>
+                </div>`;
+            container.appendChild(card);
         }
 
-        function closeRegionPopup() {
-            document.getElementById('map-region-popup').style.display = 'none';
-            selectedRegionIdx = null;
+        function closeRegionCard() {
+            const c = document.getElementById('active-region-card');
+            if (c) c.remove();
+            const ov = document.getElementById('expanded-overlay');
+            if (ov) ov.remove();
+            activeRegionId = null;
         }
 
-        function toggleHiddenMapModes(e) {
-            if (e) e.stopPropagation();
-            const createBtn = document.getElementById('btn-mode-create');
-            const editBtn = document.getElementById('btn-mode-edit');
-            const show = createBtn.style.display === 'none';
-            createBtn.style.display = show ? 'block' : 'none';
-            editBtn.style.display = show ? 'block' : 'none';
+        function toggleRegionExpand(btn) {
+            const existing = document.getElementById('expanded-overlay');
+            if (existing) { existing.remove(); btn.textContent='⛶'; return; }
+            const card = document.getElementById('active-region-card');
+            if (!card) return;
+            const regionId = card.dataset.regionId;
+            const rd = regionDescriptions[regionId] || {};
+            const fbName = regionNames[regionId] || '';
+            const fullHtml = buildDescHtml(rd.description || '', rd.imageWidth || 300);
+            const container = document.getElementById('map-container');
+            const overlay = document.createElement('div');
+            overlay.className = 'marker-expanded-overlay';
+            overlay.id = 'expanded-overlay';
+            overlay.innerHTML = `
+                <div class="marker-info-title" style="color:#00d2ff;">${fbName}</div>
+                <div>${fullHtml || '<span style="color:#00667a">Нет подробного описания</span>'}</div>
+                <div class="marker-info-footer">
+                    <span onclick="document.getElementById('expanded-overlay').remove();">[✕ СВЕРНУТЬ]</span>
+                </div>`;
+            container.appendChild(overlay);
+            btn.textContent = '⊡';
         }
-
-        function openMapHeaderMenu(e) {
-            e.preventDefault();
-            const menu = document.getElementById('map-header-menu');
-            menu.style.display = 'flex';
-            menu.style.left = e.clientX + 'px';
-            menu.style.top = e.clientY + 'px';
-        }
-
-        function closeMapHeaderMenu() {
-            document.getElementById('map-header-menu').style.display = 'none';
-        }
-        document.addEventListener('click', closeMapHeaderMenu);
 
 function renderFactionList() {
             const list = document.getElementById('faction-list');
@@ -1869,70 +1892,32 @@ function renderFactionList() {
             fbDb.ref('factions').on('value', function(snapshot) {
                 const data = snapshot.val() || {};
                 mapFactions = Object.keys(data).map(key => ({
-                    id: key,
-                    name: data[key].name,
-                    color: data[key].color
+                    id: key, name: data[key].name, color: data[key].color
                 }));
-                renderFactionList();
-                redrawMap();
+                renderFactionList(); redrawMap();
             });
-
             fbDb.ref('region_factions').on('value', function(snapshot) {
-                regionFactions = snapshot.val() || {};
+                regionFactions = snapshot.val() || {}; redrawMap();
+            });
+            fbDb.ref('region_names').on('value', function(snapshot) {
+                regionNames = snapshot.val() || {}; redrawMap();
+            });
+            fbDb.ref('region_descriptions').on('value', function(snapshot) {
+                regionDescriptions = snapshot.val() || {};
+            });
+            fbDb.ref('markers').on('value', function(snapshot) {
+                markersData = snapshot.val() || {};
+                document.querySelectorAll('.marker-card').forEach(el => el.remove());
                 redrawMap();
+                updateActiveMarkerCard();
             });
         }
 
-        function buildPaletteGrid() {
-            const grid = document.getElementById('palette-grid');
-            grid.innerHTML = '';
-            PALETTE_COLORS.forEach(color => {
-                const cell = document.createElement('div');
-                cell.className = 'palette-cell';
-                cell.style.background = color;
-                cell.onclick = () => selectPaletteColor(color);
-                grid.appendChild(cell);
-            });
-        }
 
-        function selectPaletteColor(color) {
-            selectedPaletteColor = color;
-            document.getElementById('palette-preview').style.background = color;
-            document.querySelectorAll('.palette-cell').forEach(c => {
-                c.classList.toggle('selected', c.style.background === color || c.style.backgroundColor === color);
-            });
-        }
 
-        function openColorPalette() {
-            const popup = document.getElementById('color-palette-popup');
-            popup.style.display = 'flex';
-            popup.style.left = '220px';
-            popup.style.top = '200px';
-            document.getElementById('faction-name-input').value = '';
-            selectPaletteColor(PALETTE_COLORS[0]);
-        }
 
-        function closePalette() {
-            document.getElementById('color-palette-popup').style.display = 'none';
-        }
 
-        function confirmNewFaction() {
-            const name = document.getElementById('faction-name-input').value.trim();
-            if (!name) return;
-            const newId = 'f_' + Date.now();
-            fbDb.ref('factions/' + newId).set({ name: name, color: selectedPaletteColor });
-            closePalette();
-        }
 
-        function saveMapFile() {
-            const data = { regions: mapRegions };
-            const content = 'AZAMAR\n' + JSON.stringify(data, null, 2);
-            const blob = new Blob([content], { type: 'text/plain' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'azamar_map.txt';
-            a.click();
-        }
 
         window.onload = function() {
             showBootLog();
