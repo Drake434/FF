@@ -625,18 +625,23 @@ function initGMPanel(){
         el.textContent=snap.val()?'OK':'OFFLINE';
         el.style.color=snap.val()?'#39ff88':'#ff3333';
     });
+    let githubLoaded = false;
     fbDb.ref('published_logs').on('value',snap=>{
         const raw=snap.val()||{};
         publishedState={};
         Object.keys(raw).forEach(k=>{ publishedState[fromKey(k)]=raw[k]; });
-        renderLogsTable();
+        if(!githubLoaded){
+            githubLoaded=true;
+            loadGithubFiles(); // загружаем только после получения состояния из Firebase
+        } else {
+            renderLogsTable(); // при последующих обновлениях просто перерисовываем
+        }
     });
     fbDb.ref('markers').on('value',snap=>{
         markersData=snap.val()||{};
         renderMarkersTable();
         renderMarkersOnMap();
     });
-    loadGithubFiles();
     initMapModule();
     buildMarkerSymbolPicker();
     buildMarkerPaletteGrid();
