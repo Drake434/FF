@@ -1742,12 +1742,18 @@ function initMarkerPopupDrag(){
 function performRoll(diceSize, modifier, manualRoll){
     diceSize = Math.max(1, Math.floor(diceSize) || 1);
     modifier = Math.floor(modifier) || 0;
-    const roll = manualRoll ? Math.max(1, Math.floor(manualRoll)) : 1; 
+    
+    // Берём введённое тобой число как ИТОГОВУЮ сумму
+    const total = manualRoll ? parseInt(manualRoll, 10) : (1 + modifier); 
+    
+    // Высчитываем "чистый" бросок кубика для правильной проверки на криты
+    const roll = total - modifier; 
+
     return {
         diceSize, modifier, roll,
-        total: roll + modifier,
-        isNatMin: roll === 1,
-        isNatMax: roll === diceSize
+        total: total,
+        isNatMin: roll <= 1,
+        isNatMax: roll >= diceSize
     };
 }
 
